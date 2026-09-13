@@ -216,8 +216,8 @@ function Get-JWCountdownLatestGitHubRelease {
         if(
             [string]::IsNullOrWhiteSpace($script:GitHubOwner) -or
             [string]::IsNullOrWhiteSpace($script:GitHubRepository) -or
-            $script:GitHubOwner -eq "YOUR_GITHUB_OWNER" -or
-            $script:GitHubRepository -eq "YOUR_GITHUB_REPOSITORY"
+            $script:GitHubOwner -eq "1Dkvr" -or
+            $script:GitHubRepository -eq "jw"
         ){
             Write-JWCountdownLauncherLog -Message "GitHub repository is not configured. Update check skipped."
             return $null
