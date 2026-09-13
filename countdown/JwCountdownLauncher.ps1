@@ -55,8 +55,9 @@ $script:Developer = "1Dkvr"
 # ============================================================================
 # 2. GITHUB CONFIGURATION
 # ============================================================================
-$script:GitHubOwner = "YOUR_GITHUB_OWNER"
-$script:GitHubRepository = "YOUR_GITHUB_REPOSITORY"
+$script:GitHubOwner = "1Dkvr"
+$script:GitHubRepository = "jw"
+$script:GitHubProject = "countdown"
 
 $script:GitHubLatestReleaseUrl = "https://api.github.com/repos/$($script:GitHubOwner)/$($script:GitHubRepository)/releases/latest"
 
