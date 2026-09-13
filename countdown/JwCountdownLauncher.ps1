@@ -337,7 +337,7 @@ function Start-JWCountdownApplication {
     #>
 
     try {
-        $launcherDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
+        $launcherDirectory = $PSScriptRoot
 
         if([string]::IsNullOrWhiteSpace($launcherDirectory)){
             throw "Unable to determine the launcher directory."
