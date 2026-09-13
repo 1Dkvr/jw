@@ -25,4 +25,4 @@
 :: Entry point
 :: ============================================================================
 
-START /B powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "%~dp0JwTimer.ps1"
+START /B powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "%~dp0JwLauncher.ps1"
