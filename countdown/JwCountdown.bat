@@ -1,15 +1,15 @@
 @echo off
 
 :: ============================================================================
-:: Jw Timer
+:: JW Countdown
 :: ============================================================================
 :: Application launcher
 ::
 :: Author      : 1Dkvr
 :: Copyright   : © 2026 1Dkvr
 :: Version     : 1.0.0
-:: Description : Launches the JwTimer PowerShell application in the background.
-:: File        : JwTimer.bat
+:: Description : Launches the JwCountdown PowerShell application in the background.
+:: File        : JwCountdown.bat
 :: Runtime     : Windows PowerShell
 :: Platform    : Microsoft Windows
 ::
@@ -25,4 +25,4 @@
 :: Entry point
 :: ============================================================================
 
-START /B powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "%~dp0JwLauncher.ps1"
+START /B powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "%~dp0JwCountdownLauncher.ps1"
