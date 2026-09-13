@@ -6,7 +6,7 @@
     JwCountdownLauncher.ps1 is the official entry point for JW Countdown.
 
     Its responsibilities are deliberately separated from the main application
-    contained in JwTimer.ps1.
+    contained in JwCountdown.ps1.
 
     The launcher:
         1. Determines the local JW Countdown version.
@@ -14,7 +14,7 @@
         3. Compares the local version with the latest available version.
         4. Notifies the user when a newer version is available.
         5. Opens the official release page when requested.
-        6. Starts JwTimer.ps1.
+        6. Starts JwCountdown.ps1.
 
     The current implementation detects and proposes updates only.
     It does not automatically install or replace application files.
@@ -59,7 +59,8 @@ $script:GitHubOwner = "1Dkvr"
 $script:GitHubRepository = "jw"
 $script:GitHubProject = "countdown"
 
-$script:GitHubLatestReleaseUrl = "https://api.github.com/repos/$($script:GitHubOwner)/$($script:GitHubRepository)/releases/latest"
+#$script:GitHubLatestReleaseUrl = "https://api.github.com/repos/$($script:GitHubOwner)/$($script:GitHubRepository)/releases/latest"
+$script:GitHubReleasesUrl = "https://api.github.com/repos/$($script:GitHubOwner)/$($script:GitHubRepository)/releases"
 
 # ============================================================================
 # 3. APPLICATION CONFIGURATION
@@ -211,13 +212,10 @@ function Get-JWCountdownLatestGitHubRelease {
         A failed request returns $null so that JW Countdown can still start
         normally from the local installation.
     #>
-
     try {
         if(
             [string]::IsNullOrWhiteSpace($script:GitHubOwner) -or
-            [string]::IsNullOrWhiteSpace($script:GitHubRepository) -or
-            $script:GitHubOwner -eq "1Dkvr" -or
-            $script:GitHubRepository -eq "jw"
+            [string]::IsNullOrWhiteSpace($script:GitHubRepository)
         ){
             Write-JWCountdownLauncherLog -Message "GitHub repository is not configured. Update check skipped."
             return $null
@@ -225,29 +223,35 @@ function Get-JWCountdownLatestGitHubRelease {
 
         $headers = @{
             "User-Agent" = "$($script:AppName)-Launcher/$($script:Version)"
-            "Accept"     = "application/vnd.github+json"
+            "Accept" = "application/vnd.github+json"
         }
 
-        Write-JWCountdownLauncherLog -Message "Checking latest GitHub release: $($script:GitHubLatestReleaseUrl)"
+        Write-JWCountdownLauncherLog -Message "Checking GitHub releases: $($script:GitHubReleasesUrl)"
 
-        $release = Invoke-RestMethod `
-            -Uri $script:GitHubLatestReleaseUrl `
+        # @() force le tableau : PS 5.1 "déballe" un JSON array d'un seul
+        # élément en objet unique, ce qui casserait .Count sous Strict Mode.
+        $releases = @(Invoke-RestMethod `
+            -Uri $script:GitHubReleasesUrl `
             -Method Get `
             -Headers $headers `
             -TimeoutSec $script:UpdateCheckTimeoutSeconds `
-            -ErrorAction Stop
+            -ErrorAction Stop)
+
+        if($releases.Count -eq 0){
+            Write-JWCountdownLauncherLog -Message "GitHub returned no releases."
+            return $null
+        }
+
+        $tagPrefix = "$($script:GitHubProject)-"
+        $release = $releases | Where-Object { $_.tag_name -like "$tagPrefix*" } | Select-Object -First 1
 
         if($null -eq $release){
-            Write-JWCountdownLauncherLog -Message "GitHub returned an empty response."
+            Write-JWCountdownLauncherLog -Message "No GitHub release found for project '$($script:GitHubProject)'."
             return $null
         }
 
-        if([string]::IsNullOrWhiteSpace($release.tag_name)){
-            Write-JWCountdownLauncherLog -Message "GitHub response does not contain tag_name."
-            return $null
-        }
-
-        $remoteVersion = ConvertTo-JWCountdownVersion -VersionString $release.tag_name
+        $tagVersion = $release.tag_name.Substring($tagPrefix.Length)
+        $remoteVersion = ConvertTo-JWCountdownVersion -VersionString $tagVersion
 
         if($null -eq $remoteVersion){
             Write-JWCountdownLauncherLog -Message "GitHub release tag '$($release.tag_name)' is not a valid version."
@@ -255,14 +259,13 @@ function Get-JWCountdownLatestGitHubRelease {
         }
 
         return [PSCustomObject]@{
-            Version     = $remoteVersion.ToString()
-            TagName     = [string]$release.tag_name
-            Name        = [string]$release.name
+            Version = $remoteVersion.ToString()
+            TagName = [string]$release.tag_name
+            Name = [string]$release.name
             PublishedAt = $release.published_at
-            HtmlUrl     = [string]$release.html_url
+            HtmlUrl = [string]$release.html_url
         }
     } catch {
-        # Network failures must never block application startup.
         Write-JWCountdownLauncherLog -Message "GitHub update check failed." -ErrorRecord $_
         return $null
     }
