@@ -21,7 +21,7 @@
 .NOTES
     Product      : JW Countdown
     Component    : Main application
-    Version      : 26.09.12
+    Version      : 26.09.01
     Developer    : 1Dkvr
     Platform     : Microsoft Windows
     Runtime      : Windows PowerShell 5.1+
