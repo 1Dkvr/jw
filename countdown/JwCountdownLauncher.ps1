@@ -22,7 +22,8 @@
 .NOTES
     Product      : JW Countdown
     Component    : JwCountdownLauncher
-    Version      : 26.09.01
+    Created      : 26.09.01
+    Version      : 26.09.15
     Developer    : 1Dkvr
     Platform     : Microsoft Windows
     Runtime      : Windows PowerShell 5.1+
@@ -49,7 +50,7 @@ Set-StrictMode -Version Latest
 # 1. APPLICATION CONFIGURATION
 # ============================================================================
 $script:AppName = "JW Countdown"
-$script:Version = "26.09.01"
+$script:Version = "26.09.15"
 $script:Developer = "1Dkvr"
 
 # ============================================================================
