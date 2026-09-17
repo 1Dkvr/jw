@@ -21,7 +21,8 @@
 .NOTES
     Product      : JW Countdown
     Component    : Main application
-    Version      : 26.09.01
+    Created      : 26.09.01
+    Version      : 26.09.15
     Developer    : 1Dkvr
     Platform     : Microsoft Windows
     Runtime      : Windows PowerShell 5.1+
@@ -49,7 +50,7 @@ Add-Type -AssemblyName System.Drawing
 # 2. APPLICATION CONSTANTS
 # =====================================================================
 $script:AppName = "JW Countdown"
-$script:Version = "26.09.01"
+$script:Version = "26.09.15"
 $script:Developer = "1Dkvr"
 
 # =====================================================================
@@ -431,6 +432,7 @@ function Update-ScreenSelection {
 for($i = 0; $i -lt $screens.Count; $i++){
     $screen = $screens[$i]
     $screenNumber = $i + 1
+
     if($screen.Primary){
         $screenType = "Primary display"
     } else {
@@ -438,11 +440,14 @@ for($i = 0; $i -lt $screens.Count; $i++){
     }
 
     $resolution = "$($screen.Bounds.Width) x $($screen.Bounds.Height)"
+
     $screenButton = New-Object System.Windows.Forms.Button
     $screenButton.Size = New-Object System.Drawing.Size(145, 100)
     $screenButton.Margin = New-Object System.Windows.Forms.Padding(0, 0, 10, 0)
+
     $screenButton.Text = "$screenNumber`r`n$screenType`r`n$resolution"
     $screenButton.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+
     $screenButton.Font = New-JWFont -Size 9 -Style ([System.Drawing.FontStyle]::Bold)
     $screenButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $screenButton.FlatAppearance.BorderColor = $ColorBorder
@@ -451,21 +456,19 @@ for($i = 0; $i -lt $screens.Count; $i++){
     $screenButton.ForeColor = $ColorTextPrimary
     $screenButton.Cursor = [System.Windows.Forms.Cursors]::Hand
 
-    #
-    # Store the monitor index directly on the control.
-    #
+    # ---------------------------------------------------------------
+    # Store the monitor index directly on the button.
+    # ---------------------------------------------------------------
     $screenButton.Tag = $i
 
-    #
-    # GetNewClosure ensures every button keeps its own display index.
-    #
-    $capturedIndex = $i
-    $screenButton.Add_Click(
-        {
-            $script:SelectedScreenIndex = $capturedIndex
-            Update-ScreenSelection
-        }.GetNewClosure()
-    )
+    # ---------------------------------------------------------------
+    # When clicked, read the index directly from the clicked button.
+    # This avoids any closure/captured-variable issue.
+    # ---------------------------------------------------------------
+    $screenButton.Add_Click({
+        $script:SelectedScreenIndex = [int]$this.Tag
+        Update-ScreenSelection
+    })
 
     $screenButtons += $screenButton
     $screenFlow.Controls.Add($screenButton)
