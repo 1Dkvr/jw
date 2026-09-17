@@ -316,18 +316,8 @@ public static class JWCountdownConsole
     # This function creates one independent overlay window per selected
     # display while using ONE shared WinForms Timer.
     #
-    # This architecture is intentional:
+    # Use one shared timer so all displays stay synchronized.
     #
-    #   one timer
-    #       |
-    #       +----> display 1 label
-    #       +----> display 2 label
-    #       +----> display 3 label
-    #
-    # Every display therefore receives exactly the same calculated
-    # remaining time.
-    #
-
     function Show-CountdownOverlays {
         param(
             [Parameter(Mandatory = $true)]
