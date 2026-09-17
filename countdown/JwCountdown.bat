@@ -6,7 +6,8 @@
 ::
 :: Author      : 1Dkvr
 :: Copyright   : © 2026 1Dkvr. All rights reserved.
-:: Version     : 26.09.01
+:: Created     : 26.09.01
+:: Version     : 26.09.15
 :: Description : Launches the JW Countdown launcher and update manager.
 :: File        : JwCountdown.bat
 :: Runtime     : Windows PowerShell 5.1+
