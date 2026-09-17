@@ -46,7 +46,7 @@
     Product      : JW Countdown
     Component    : Main application
     Created      : 26.09.01
-    Version      : 26.09.17
+    Version      : 26.09.15
     Developer    : 1Dkvr
     Platform     : Microsoft Windows
     Runtime      : Windows PowerShell 5.1+
@@ -75,7 +75,7 @@ Add-Type -AssemblyName System.Drawing
 # 2. APPLICATION CONSTANTS
 # =====================================================================
 $script:AppName    = "JW Countdown"
-$script:Version    = "26.09.17"
+$script:Version    = "26.09.15"
 $script:Developer  = "1Dkvr"
 
 # =====================================================================
