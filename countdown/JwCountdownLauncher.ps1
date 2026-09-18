@@ -21,25 +21,23 @@
 
 .NOTES
     Product      : JW Countdown
-    Component    : JwCountdownLauncher
+    Component    : Main application
     Created      : 26.09.01
     Developer    : 1Dkvr
+    Publisher    : Hold'inCorp.
     Platform     : Microsoft Windows
     Runtime      : Windows PowerShell 5.1+
-    License      : Proprietary
+    Dependencies : System.Windows.Forms, System.Drawing
+    License      : Custom Non-Commercial Source-Available
+    License URL  : https://github.com/1Dkvr/jw/blob/main/LICENSE.md
 
-    Copyright © 2026 1Dkvr. All rights reserved.
+    Copyright © 2026 [Publisher]. All rights reserved.
 
-    This software and its source code are proprietary and protected by
-    applicable intellectual property laws.
+    This source code is subject to the terms and conditions defined in the 'LICENSE.md' file located in the root directory of this repository or online at at the URL above.
+    
+    No external module or third-party dependency is required.
 
-    Unauthorized copying, modification, distribution, publication,
-    sublicensing or commercial use is prohibited without prior authorization
-    from the copyright holder.
-
-    Security:
-        The Countdown launcher retrieves release metadata only.
-        No remote code is executed by the update-check mechanism.
+    Future release tooling may add package integrity and Authenticode signature verification without changing the countdown application itself.
 #>
 Set-StrictMode -Version Latest
 
