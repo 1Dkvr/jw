@@ -5,7 +5,7 @@
 ## 1. SCHEDULE OF DEFINITIONS & REFERRED TERMS
 This Agreement is governed by the defined terms set forth in the schedule below. The Licensee shall interpret all bold bracketed terms throughout this Agreement strictly according to the following legal definitions:
 
-| Defined Term | Reference Value / Placeholders | Scope & Legal Context |
+| Defined Term | Value | Scope & Legal Context |
 | :--- | :--- | :--- |
 | **[LICENSOR]** | *Hold'inCorp.* | The legal entity holding exclusive economic, commercial, and exploitation rights. |
 | **[AUTHOR]** | *1Dkvr* | The natural person, lead developer, and moral rights holder. |
