@@ -11,7 +11,7 @@ This Agreement is governed by the defined terms set forth in the schedule below.
 | **[AUTHOR]** | *1Dkvr* | The natural person, lead developer, and moral rights holder. |
 | **[SOFTWARE_NAME]** | *This Repository & Associated Assets* | Any software, project, script, codebase, library, binary, asset, or documentation in which this License is embedded or distributed. |
 | **[EFFECTIVE_DATE]** | *2025* | The initial publication or copyright creation year. |
-| **[LICENSOR_JURISDICTION]** | *Paris, France* | Applicable governing law venue and courts of competent jurisdiction. |
+| **[LICENSOR_JURISDICTION]** | *Paris, France* | Applicable governing law venue and courts of competent jurisdiction of **[LICENSOR]**. |
 | **[LICENSING_CONTACT]** | *inprogress.company* | Official contact for commercial licensing inquiries. |
 
 ---
@@ -32,19 +32,19 @@ In all copies, redistributions, or derivative works of **[SOFTWARE_NAME]**, Lice
 2. The primary copyright notice designating **[LICENSOR]** as the exclusive economic copyright holder (`Copyright © [EFFECTIVE_DATE] [LICENSOR]. All rights reserved.`).
 
 ### 3.2 Immutability of Legal Notices
-Licensee shall not remove, suppress, alter, or obfuscate any copyright headers, metadata tags, developer annotations (`.NOTES` / header comment blocks), trademark notices, or license terms present within the repository or source files.
+Licensee shall not remove, suppress, alter, or obfuscate any copyright headers, metadata tags, developer annotations, trademark notices, or license terms present within the repository or source files.
 
 ---
 ## 4. STRICT COMMERCIAL RESTRICTIONS & MONETIZATION BARRIER
 
 ### 4.1 Prohibition on Commercial Exploitation
-**ANY COMMERCIAL USE, MONETIZATION, DIRECT OR INDIRECT REVENUE GENERATION, OR FINANCIAL VALUE EXTRACTION FROM [SOFTWARE_NAME] IS STRICTLY PROHIBITED WITHOUT A SEPARATE EXECUTED COMMERCIAL LICENSE ISSUED BY [LICENSOR].**
+**Any commercial use, monetization, direct or indirect revenue generation, or financial value extraction from **[SOFTWARE_NAME]** is strictly prohibited without a separate executed commercial license issued by **[LICENSOR]** only.**
 
 ### 4.2 Defined Commercial Activities
 For the purposes of this Agreement, prohibited Commercial Use includes, but is not limited to:
 * **Direct Sale & Licensing:** Selling, reselling, sublicensing, leasing, renting, or charging access fees for **[SOFTWARE_NAME]** or derived works.
 * **SaaS & Cloud Operations:** Offering **[SOFTWARE_NAME]** as a Software-as-a-Service (SaaS), Platform-as-a-Service (PaaS), managed cloud service, or API integration to third parties for financial compensation.
-* **Enterprise Production Integration:** Utilizing **[SOFTWARE_NAME]** within a commercial enterprise to directly support, execute, or optimize revenue-generating business operations or client workflows.
+* **Enterprise Production Integration:** Utilizing **[SOFTWARE_NAME]** within a commercial enterprise to directly/indirectly support, execute, or optimize revenue-generating business operations or client workflows.
 * **Paid Services & Consulting:** Packaging **[SOFTWARE_NAME]** with paid installation, configuration, maintenance, integration, or support contracts.
 
 ### 4.3 Commercial License Grants
@@ -66,11 +66,11 @@ This License and the rights granted hereunder terminate automatically, immediate
 ---
 ## 7. DISCLAIMER OF WARRANTY & LIMITATION OF LIABILITY
 
-### 7.1 "AS IS" Provision
-**[SOFTWARE_NAME] IS PROVIDED BY [LICENSOR] AND [AUTHOR] "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.**
+### 7.1 "AS IS" Disclaimer
+****[SOFTWARE_NAME]** is provided by **[LICENSOR]** and **[AUTHOR]** "as is" and "as available", without warranty of any kind, express, implied, or statutory, including but not limited to the warranties of merchantability, fitness for a particular purpose, title, and non-infringement.**
 
 ### 7.2 Limitation of Liability
-**IN NO EVENT SHALL [LICENSOR] OR [AUTHOR] BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY (INCLUDING LOSS OF PROFITS, DATA, OR BUSINESS INTERRUPTION) ARISING OUT OF OR IN CONNECTION WITH THE USE, INABILITY TO USE, OR MODIFICATION OF [SOFTWARE_NAME].**
+**In no event shall **[LICENSOR]**, **[AUTHOR]**, or their affiliates be liable for any claim, damages, or other liability (including direct, indirect, incidental, special, exemplary, or consequential damages, loss of profits, loss of data, or business interruption) arising out of or in connection with the use, inability to use, or modification of **[SOFTWARE_NAME]**.**
 
 ---
 ## 8. GOVERNING LAW & INTERNATIONAL JURISDICTION
