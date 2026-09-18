@@ -50,7 +50,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $script:ApplicationMetadata = [ordered]@{
     Name      = "JW Countdown"
-    Version   = "26.09.15"
+    Version   = "26.09.20"
     Developer = "1Dkvr"
 }
 
