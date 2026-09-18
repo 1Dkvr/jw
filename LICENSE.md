@@ -1,8 +1,8 @@
-# UNIVERSAL NON-COMMERCIAL SOURCE-AVAILABLE SOFTWARE LICENSE AGREEMENT
+# Universal non-commercial source-available software license agreement
 **Version 1.1 — Global Multi-Repository & Enterprise Edition**
 
 ---
-## 1. SCHEDULE OF DEFINITIONS & REFERRED TERMS
+## 1. Schedule of definitions & referred terms
 This Agreement is governed by the defined terms set forth in the schedule below. The Licensee shall interpret all bold bracketed terms throughout this Agreement strictly according to the following legal definitions:
 
 | Defined Term | Value | Scope & Legal Context |
@@ -15,7 +15,7 @@ This Agreement is governed by the defined terms set forth in the schedule below.
 | **[LICENSING_CONTACT]** | *inprogress.company* | Official contact for commercial licensing inquiries. |
 
 ---
-## 2. GRANT OF NON-COMMERCIAL LICENSE
+## 2. Grant of non-commercial license
 
 ### 2.1 Scope of Permitted Grant
 Subject to strict compliance with the terms and conditions of this Agreement, **[LICENSOR]** hereby grants to you (an individual or a single legal entity, hereinafter "Licensee") a worldwide, royalty-free, non-exclusive, non-transferable, and revocable license to view, execute, compile, and modify the source code and binaries of **[SOFTWARE_NAME]** solely for **Personal, Educational, Academic Research, Evaluation, or Internal Non-Commercial Purposes**.
@@ -24,7 +24,7 @@ Subject to strict compliance with the terms and conditions of this Agreement, **
 This License provides "Source-Available" access under an international legal framework. It **DOES NOT** constitute an Open Source Initiative (OSI) approved open-source license. No rights, express or implied, are granted to Licensee other than those explicitly set forth herein.
 
 ---
-## 3. MANDATORY ATTRIBUTION & NOTICE PRESERVATION
+## 3. Mandatory attribution & notice preservation
 
 ### 3.1 Developer & Licensor Attribution
 In all copies, redistributions, or derivative works of **[SOFTWARE_NAME]**, Licensee must prominently retain and present:
@@ -35,7 +35,7 @@ In all copies, redistributions, or derivative works of **[SOFTWARE_NAME]**, Lice
 Licensee shall not remove, suppress, alter, or obfuscate any copyright headers, metadata tags, developer annotations, trademark notices, or license terms present within the repository or source files.
 
 ---
-## 4. STRICT COMMERCIAL RESTRICTIONS & MONETIZATION BARRIER
+## 4. Strict commercial restrictions & monetization barrier
 
 ### 4.1 Prohibition on Commercial Exploitation
 **Any commercial use, monetization, direct or indirect revenue generation, or financial value extraction from **[SOFTWARE_NAME]** is strictly prohibited without a separate executed commercial license issued by **[LICENSOR]** only.**
@@ -51,7 +51,7 @@ For the purposes of this Agreement, prohibited Commercial Use includes, but is n
 Entities wishing to deploy **[SOFTWARE_NAME]** for any commercial purpose must execute a custom Commercial License Agreement with **[LICENSOR]**. Inquiries shall be directed to: **[LICENSING_CONTACT]**.
 
 ---
-## 5. INTERNATIONAL INTELLECTUAL PROPERTY & MORAL RIGHTS
+## 5. Internationam intellectual property & moral rights
 
 ### 5.1 Global Copyright Protection
 **[SOFTWARE_NAME]** is protected under global copyright legislation and international treaties, including the Berne Convention for the Protection of Literary and Artistic Works. **[LICENSOR]** retains all economic rights, title, and ownership in and to **[SOFTWARE_NAME]**.
@@ -60,11 +60,11 @@ Entities wishing to deploy **[SOFTWARE_NAME]** for any commercial purpose must e
 **[AUTHOR]** explicitly retains all non-waivable moral rights, including paternity rights and the right to integrity of the work, preventing any derogatory treatment or unauthorized misrepresentation of identity.
 
 ---
-## 6. AUTOMATIC TERMINATION
+## 6. Automatic termination
 This License and the rights granted hereunder terminate automatically, immediately, and without judicial notice upon any breach by Licensee of any restriction set forth herein. Upon termination, Licensee must immediately cease all use and execution of **[SOFTWARE_NAME]** and permanently destroy all complete or partial copies in their possession or control.
 
 ---
-## 7. DISCLAIMER OF WARRANTY & LIMITATION OF LIABILITY
+## 7. Disclaimer of warranty & limitation of liability
 
 ### 7.1 "AS IS" Disclaimer
 ****[SOFTWARE_NAME]** is provided by **[LICENSOR]** and **[AUTHOR]** "as is" and "as available", without warranty of any kind, express, implied, or statutory, including but not limited to the warranties of merchantability, fitness for a particular purpose, title, and non-infringement.**
@@ -73,5 +73,5 @@ This License and the rights granted hereunder terminate automatically, immediate
 **In no event shall **[LICENSOR]**, **[AUTHOR]**, or their affiliates be liable for any claim, damages, or other liability (including direct, indirect, incidental, special, exemplary, or consequential damages, loss of profits, loss of data, or business interruption) arising out of or in connection with the use, inability to use, or modification of **[SOFTWARE_NAME]**.**
 
 ---
-## 8. GOVERNING LAW & INTERNATIONAL JURISDICTION
+## 8. Governing law & International jurisdiction
 This Agreement shall be governed by, construed, and enforced in accordance with the substantive laws of **[LICENSOR_JURISDICTION]**, without giving effect to any conflict of law principles. Any legal dispute, claim, or enforcement action arising under this License shall be submitted to the exclusive jurisdiction of the competent courts located in **[LICENSOR_JURISDICTION]**.
