@@ -23,11 +23,9 @@
     Product      : JW Countdown
     Component    : JwCountdownLauncher
     Created      : 26.09.01
-    Version      : 26.09.15
     Developer    : 1Dkvr
     Platform     : Microsoft Windows
     Runtime      : Windows PowerShell 5.1+
-    Dependencies : System.Windows.Forms
     License      : Proprietary
 
     Copyright © 2026 1Dkvr. All rights reserved.
@@ -43,409 +41,608 @@
         The Countdown launcher retrieves release metadata only.
         No remote code is executed by the update-check mechanism.
 #>
-
 Set-StrictMode -Version Latest
 
-# ============================================================================
-# 1. APPLICATION CONFIGURATION
-# ============================================================================
-$script:AppName = "JW Countdown"
-$script:Version = "26.09.15"
-$script:Developer = "1Dkvr"
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
 
-# ============================================================================
-# 2. GITHUB CONFIGURATION
-# ============================================================================
-$script:GitHubOwner = "1Dkvr"
-$script:GitHubRepository = "jw"
-$script:GitHubProject = "countdown"
-
-#$script:GitHubLatestReleaseUrl = "https://api.github.com/repos/$($script:GitHubOwner)/$($script:GitHubRepository)/releases/latest"
-$script:GitHubReleasesUrl = "https://api.github.com/repos/$($script:GitHubOwner)/$($script:GitHubRepository)/releases"
-
-# ============================================================================
-# 3. APPLICATION CONFIGURATION
-# ============================================================================
-$script:ApplicationFileName = "JwCountdown.ps1"
-
-# The update check must never prevent the application from starting for an
-# extended period when GitHub is unavailable.
-$script:UpdateCheckTimeoutSeconds = 5
-
-$script:MessageBoxTitle = "$($script:AppName) - Update"
-
-# ============================================================================
-# 4. REQUIRED .NET ASSEMBLIES
-# ============================================================================
-try {
-    Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
-} catch {
-    # The countdown launcher can still attempt to start the main application if
-    # Windows Forms cannot be loaded.
+$script:ApplicationMetadata = [ordered]@{
+    Name      = "JW Countdown"
+    Version   = "26.09.15"
+    Developer = "1Dkvr"
 }
 
-# ============================================================================
-# 5. DIAGNOSTIC LOGGING
-# ============================================================================
-function Write-JWCountdownLauncherLog {
-    <#
-    .SYNOPSIS
-        Writes a diagnostic message to the PowerShell debug stream.
+$script:AppName   = $script:ApplicationMetadata.Name
+$script:Version   = $script:ApplicationMetadata.Version
+$script:Developer = $script:ApplicationMetadata.Developer
 
-    .DESCRIPTION
-        No persistent log file is created. Diagnostic information is written
-        only to the debug stream so normal users do not receive extra files.
-    #>
+$script:GitHubOwner             = "1Dkvr"
+$script:GitHubRepository         = "jw"
+$script:GitHubProject            = "countdown"
+$script:GitHubReleasesUrl        = "https://api.github.com/repos/$($script:GitHubOwner)/$($script:GitHubRepository)/releases"
+$script:GitHubApiVersion         = "2026-03-10"
+$script:ApplicationFileName      = "JwCountdown.ps1"
+$script:LauncherFileName         = "JwCountdownLauncher.ps1"
+$script:BatchFileName             = "JwCountdown.bat"
+$script:UpdateCheckTimeoutSeconds = 5
+$script:MutexName                 = "Local\JWCountdown.SingleTimer"
+$script:MessageBoxTitle           = $script:AppName
+$script:UpdateWorkingDirectory    = Join-Path $env:TEMP "JWCountdownUpdate"
 
+function Show-JWMessage {
     param(
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory)]
         [string]$Message,
 
-        [Parameter(Mandatory = $false)]
-        [System.Management.Automation.ErrorRecord]$ErrorRecord
+        [System.Windows.Forms.MessageBoxButtons]$Buttons = [System.Windows.Forms.MessageBoxButtons]::OK,
+
+        [System.Windows.Forms.MessageBoxIcon]$Icon = [System.Windows.Forms.MessageBoxIcon]::Information
     )
 
-    if($null -ne $ErrorRecord){
-        Write-Debug "[JW Countdown Launcher] $Message | $($ErrorRecord.Exception.Message)"
-    } else {
-        Write-Debug "[JW Countdown Launcher] $Message"
-    }
+    return [System.Windows.Forms.MessageBox]::Show($Message, $script:MessageBoxTitle, $Buttons, $Icon)
 }
 
-# ============================================================================
-# 6. VERSION MANAGEMENT
-# ============================================================================
 function ConvertTo-JWCountdownVersion {
-    <#
-    .SYNOPSIS
-        Converts a JW Countdown version string into System.Version.
-
-    .DESCRIPTION
-        Supported format:
-            Major.Minor.Patch
-
-        GitHub tags may optionally begin with "v".
-        Invalid values return $null.
-    #>
-
     param(
-        [Parameter(Mandatory = $true)]
-        [AllowEmptyString()]
-        [string]$VersionString
+        [Parameter(Mandatory)]
+        [string]$Value
     )
 
-    try {
-        if([string]::IsNullOrWhiteSpace($VersionString)){
-            return $null
-        }
+    $match = [regex]::Match($Value, '\d+(?:\.\d+){1,3}')
 
-        $normalizedVersion = $VersionString.Trim()
+    if(-not $match.Success){ throw "Invalid version: $Value"}
 
-        if($normalizedVersion.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)){
-            $normalizedVersion = $normalizedVersion.Substring(1).Trim()
-        }
-
-        $parsedVersion = New-Object System.Version
-
-        if(-not [System.Version]::TryParse(
-            $normalizedVersion,
-            [ref]$parsedVersion
-        )){
-            return $null
-        }
-
-        return $parsedVersion
-    } catch {
-        Write-JWCountdownLauncherLog -Message "Unable to parse version '$VersionString'." -ErrorRecord $_
-
-        return $null
-    }
+    return [System.Version]::Parse($match.Value)
 }
 
 function Compare-JWCountdownVersions {
-    <#
-    .SYNOPSIS
-        Compares two JW Countdown versions numerically.
-
-    .DESCRIPTION
-        Returns:
-            -1 when VersionA is older than VersionB.
-             0 when both versions are equal.
-             1 when VersionA is newer than VersionB.
-    #>
-
     param(
-        [Parameter(Mandatory = $true)]
-        [string]$VersionA,
+        [Parameter(Mandatory)]
+        [string]$CurrentVersion,
 
-        [Parameter(Mandatory = $true)]
-        [string]$VersionB
+        [Parameter(Mandatory)]
+        [string]$LatestVersion
     )
 
-    $parsedA = ConvertTo-JWCountdownVersion -VersionString $VersionA
-    $parsedB = ConvertTo-JWCountdownVersion -VersionString $VersionB
+    $current = ConvertTo-JWCountdownVersion $CurrentVersion
+    $latest = ConvertTo-JWCountdownVersion $LatestVersion
 
-    if($null -eq $parsedA){
-        throw "Invalid local version: '$VersionA'."
-    }
-
-    if($null -eq $parsedB){
-        throw "Invalid remote version: '$VersionB'."
-    }
-
-    return $parsedA.CompareTo($parsedB)
+    return $latest.CompareTo($current)
 }
 
-# ============================================================================
-# 7. GITHUB RELEASE MANAGEMENT
-# ============================================================================
 function Get-JWCountdownLatestGitHubRelease {
-    <#
-    .SYNOPSIS
-        Retrieves the latest published stable JW Countdown release.
+    $headers = @{
+        "Accept"           = "application/vnd.github+json"
+        "User-Agent"       = "$($script:AppName)-Launcher/$($script:Version)"
+        "X-GitHub-Api-Version" = $script:GitHubApiVersion
+    }
 
-    .DESCRIPTION
-        Calls the GitHub Releases API.
-
-        Only release metadata is retrieved. No remote application code is
-        downloaded or executed.
-
-        A failed request returns $null so that JW Countdown can still start
-        normally from the local installation.
-    #>
     try {
-        if(
-            [string]::IsNullOrWhiteSpace($script:GitHubOwner) -or
-            [string]::IsNullOrWhiteSpace($script:GitHubRepository)
-        ){
-            Write-JWCountdownLauncherLog -Message "GitHub repository is not configured. Update check skipped."
-            return $null
-        }
-
-        $headers = @{
-            "User-Agent" = "$($script:AppName)-Launcher/$($script:Version)"
-            "Accept" = "application/vnd.github+json"
-        }
-
-        Write-JWCountdownLauncherLog -Message "Checking GitHub releases: $($script:GitHubReleasesUrl)"
-
-        # @() force le tableau : PS 5.1 "déballe" un JSON array d'un seul
-        # élément en objet unique, ce qui casserait .Count sous Strict Mode.
-        $releases = @(Invoke-RestMethod `
-            -Uri $script:GitHubReleasesUrl `
-            -Method Get `
-            -Headers $headers `
-            -TimeoutSec $script:UpdateCheckTimeoutSeconds `
-            -ErrorAction Stop)
-
-        if($releases.Count -eq 0){
-            Write-JWCountdownLauncherLog -Message "GitHub returned no releases."
-            return $null
-        }
-
-        $tagPrefix = "$($script:GitHubProject)-"
-        $release = $releases | Where-Object { $_.tag_name -like "$tagPrefix*" } | Select-Object -First 1
-
-        if($null -eq $release){
-            Write-JWCountdownLauncherLog -Message "No GitHub release found for project '$($script:GitHubProject)'."
-            return $null
-        }
-
-        $tagVersion = $release.tag_name.Substring($tagPrefix.Length)
-        $remoteVersion = ConvertTo-JWCountdownVersion -VersionString $tagVersion
-
-        if($null -eq $remoteVersion){
-            Write-JWCountdownLauncherLog -Message "GitHub release tag '$($release.tag_name)' is not a valid version."
-            return $null
-        }
-
-        return [PSCustomObject]@{
-            Version = $remoteVersion.ToString()
-            TagName = [string]$release.tag_name
-            Name = [string]$release.name
-            PublishedAt = $release.published_at
-            HtmlUrl = [string]$release.html_url
-        }
+        $releases = @(
+            Invoke-RestMethod `
+                -Uri "$($script:GitHubReleasesUrl)?per_page=20" `
+                -Method Get `
+                -Headers $headers `
+                -TimeoutSec $script:UpdateCheckTimeoutSeconds `
+                -ErrorAction Stop
+        )
     } catch {
-        Write-JWCountdownLauncherLog -Message "GitHub update check failed." -ErrorRecord $_
         return $null
     }
-}
 
-# ============================================================================
-# 8. UPDATE NOTIFICATION
-# ============================================================================
-function Show-JWCountdownUpdateNotification {
-    <#
-    .SYNOPSIS
-        Notifies the user when a newer release is available.
+    $tagPrefix = "$($script:GitHubProject)-"
 
-    .DESCRIPTION
-        The current implementation opens the official GitHub release page
-        after user confirmation.
-
-        Automatic installation is intentionally not implemented yet.
-    #>
-
-    param(
-        [Parameter(Mandatory = $true)]
-        [PSCustomObject]$Release
+    $candidates = @(
+        $releases |
+        Where-Object {-not $_.draft -and -not $_.prerelease -and $_.tag_name -like "$tagPrefix*"} |
+        ForEach-Object {
+            try {
+                [pscustomobject]@{
+                    Release = $_
+                    Version = ConvertTo-JWCountdownVersion $_.tag_name
+                }
+            }
+            catch {
+                $null
+            }
+        } | Where-Object { $_ -ne $null } | Sort-Object Version -Descending
     )
 
+    if($candidates.Count -eq 0){ return $null }
+
+    return $candidates[0].Release
+}
+
+function Get-JWCountdownUpdateAsset {
+    param(
+        [Parameter(Mandatory)]
+        $Release
+    )
+
+    $assets = @($Release.assets | Where-Object {$_.state -eq "uploaded" -and $_.name -like "*.zip"})
+
+    if($assets.Count -eq 0){ throw "No ZIP package was found in the GitHub release."}
+
+    if($assets.Count -gt 1){
+        $preferred = $assets | Where-Object {$_.name -like "$($script:GitHubProject)-*.zip"} | Select-Object -First 1
+
+        if($preferred){ return $preferred}
+    }
+
+    return $assets[0]
+}
+
+function Test-JWCountdownInstanceAvailable {
+    $mutex = New-Object System.Threading.Mutex($false, $script:MutexName)
+
     try {
-        $message = @"
-A new version of $($script:AppName) is available.
-
-Current version:
-$($script:Version)
-
-Latest version:
-$($Release.Version)
-
-Would you like to view the new release?
-"@
-
-        $result = [System.Windows.Forms.MessageBox]::Show(
-            $message,
-            $script:MessageBoxTitle,
-            [System.Windows.Forms.MessageBoxButtons]::YesNo,
-            [System.Windows.Forms.MessageBoxIcon]::Information
-        )
-
-        if(
-            $result -eq [System.Windows.Forms.DialogResult]::Yes -and
-            -not [string]::IsNullOrWhiteSpace($Release.HtmlUrl)
-        ){
-            Start-Process -FilePath $Release.HtmlUrl -ErrorAction Stop
+        try {
+            $acquired = $mutex.WaitOne(0, $false)
+        } catch [System.Threading.AbandonedMutexException] {
+            $acquired = $true
         }
-    } catch {
-        Write-JWCountdownLauncherLog -Message "Unable to display or process the update notification." -ErrorRecord $_
+
+        if(-not $acquired){ return $false }
+
+        return $true
+    } finally {
+        if($acquired){
+            try {
+                $mutex.ReleaseMutex()
+            } catch {
+            }
+        }
+
+        $mutex.Dispose()
     }
 }
 
-# ============================================================================
-# 9. MAIN APPLICATION LAUNCH
-# ============================================================================
 function Start-JWCountdownApplication {
-    <#
-    .SYNOPSIS
-        Starts the main JW Countdown application.
+    $applicationPath = Join-Path $PSScriptRoot $script:ApplicationFileName
 
-    .DESCRIPTION
-        Resolves JwTimer.ps1 relative to the launcher and starts it using
-        Windows PowerShell with the same execution policy and hidden-window
-        behavior as the existing launcher architecture.
-    #>
+    if(-not (Test-Path -LiteralPath $applicationPath -PathType Leaf)){
+        Show-JWMessage `
+            -Message "$($script:ApplicationFileName) was not found in the application directory." `
+            -Icon ([System.Windows.Forms.MessageBoxIcon]::Error)
+
+        return $false
+    }
 
     try {
-        $launcherDirectory = $PSScriptRoot
-
-        if([string]::IsNullOrWhiteSpace($launcherDirectory)){
-            throw "Unable to determine the launcher directory."
-        }
-
-        $applicationPath = Join-Path -Path $launcherDirectory -ChildPath $script:ApplicationFileName
-
-        if(-not (Test-Path -LiteralPath $applicationPath -PathType Leaf)){
-            throw "JW Countdown application not found: '$applicationPath'."
-        }
-
-        Write-JWCountdownLauncherLog -Message "Starting JW Countdown application: $applicationPath"
-
         Start-Process `
             -FilePath "powershell.exe" `
             -ArgumentList @(
-                "-ExecutionPolicy",
-                "Bypass",
+                "-ExecutionPolicy", "Bypass",
                 "-NoProfile",
-                "-WindowStyle",
-                "Hidden",
-                "-File",
-                "`"$applicationPath`""
+                "-WindowStyle", "Hidden",
+                "-File", "`"$applicationPath`""
             ) `
-            -WorkingDirectory $launcherDirectory `
+            -WorkingDirectory $PSScriptRoot `
             -ErrorAction Stop
-    } catch {
-        Write-JWCountdownLauncherLog -Message "Unable to start JW Countdown." -ErrorRecord $_
 
-        try {
-            [System.Windows.Forms.MessageBox]::Show(
-                "JW Countdown could not be started.`r`n`r`n$($_.Exception.Message)",
-                $script:AppName,
-                [System.Windows.Forms.MessageBoxButtons]::OK,
-                [System.Windows.Forms.MessageBoxIcon]::Error
-            ) | Out-Null
-        } catch {
-            # No graphical recovery is available.
-        }
-        exit 1
+        return $true
+    }
+    catch {
+        Show-JWMessage `
+            -Message "JW Countdown could not be started.`r`n`r`n$($_.Exception.Message)" `
+            -Icon ([System.Windows.Forms.MessageBoxIcon]::Error)
+
+        return $false
     }
 }
 
-# ============================================================================
-# 10. MAIN LAUNCHER WORKFLOW
-# ============================================================================
-function Start-JWCountdownLauncher {
-    <#
-    .SYNOPSIS
-        Executes the complete JW Countdown launcher workflow.
+function Show-JWCountdownUpdateDialog {
+    param(
+        [Parameter(Mandatory)]
+        $Release,
 
-    .DESCRIPTION
-        Workflow:
-            1. Validate the local version.
-            2. Check GitHub for the latest stable release.
-            3. Compare local and remote versions.
-            4. Notify the user if an update exists.
-            5. Start the local JW Countdown application.
+        [Parameter(Mandatory)]
+        [string]$LatestVersion
+    )
 
-        A failed update check never prevents application startup.
-    #>
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = "$($script:AppName) - Update"
+    $form.StartPosition = "CenterScreen"
+    $form.Size = New-Object System.Drawing.Size(460, 250)
+    $form.MinimumSize = $form.Size
+    $form.MaximumSize = $form.Size
+    $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+    $form.MaximizeBox = $false
+    $form.MinimizeBox = $false
+    $form.ShowInTaskbar = $false
 
-    $localVersion = ConvertTo-JWCountdownVersion -VersionString $script:Version
+    $titleLabel = New-Object System.Windows.Forms.Label
+    $titleLabel.Text = "A new version of $($script:AppName) is available."
+    $titleLabel.Location = New-Object System.Drawing.Point(24, 22)
+    $titleLabel.Size = New-Object System.Drawing.Size(400, 24)
+    $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
 
-    if($null -eq $localVersion){
-        throw "The configured local JW Countdown version '$($script:Version)' is invalid."
+    $versionLabel = New-Object System.Windows.Forms.Label
+    $versionLabel.Text = "Current version: $($script:Version)`r`nLatest version:  $LatestVersion"
+    $versionLabel.Location = New-Object System.Drawing.Point(24, 60)
+    $versionLabel.Size = New-Object System.Drawing.Size(400, 48)
+    $versionLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+
+    $infoLabel = New-Object System.Windows.Forms.Label
+    $infoLabel.Text = "The update will be downloaded and installed automatically."
+    $infoLabel.Location = New-Object System.Drawing.Point(24, 114)
+    $infoLabel.Size = New-Object System.Drawing.Size(400, 36)
+    $infoLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+
+    $installButton = New-Object System.Windows.Forms.Button
+    $installButton.Text = "INSTALL UPDATE"
+    $installButton.Location = New-Object System.Drawing.Point(24, 172)
+    $installButton.Size = New-Object System.Drawing.Size(125, 32)
+    $installButton.DialogResult = [System.Windows.Forms.DialogResult]::Yes
+
+    $releaseButton = New-Object System.Windows.Forms.Button
+    $releaseButton.Text = "RELEASE NOTES"
+    $releaseButton.Location = New-Object System.Drawing.Point(159, 172)
+    $releaseButton.Size = New-Object System.Drawing.Size(125, 32)
+
+    $laterButton = New-Object System.Windows.Forms.Button
+    $laterButton.Text = "LATER"
+    $laterButton.Location = New-Object System.Drawing.Point(294, 172)
+    $laterButton.Size = New-Object System.Drawing.Size(125, 32)
+    $laterButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+
+    $releaseButton.Add_Click({
+        try {
+            Start-Process $Release.html_url
+        } catch {
+        }
+    })
+
+    $form.Controls.AddRange(@($titleLabel, $versionLabel, $infoLabel, $installButton, $releaseButton, $laterButton))
+
+    $form.AcceptButton = $installButton
+    $form.CancelButton = $laterButton
+
+    $result = $form.ShowDialog()
+    $form.Dispose()
+
+    if($result -eq [System.Windows.Forms.DialogResult]::Yes){ return "Install"}
+
+    return "Later"
+}
+
+function Show-JWCountdownUpdateProgress {
+    param(
+        [Parameter(Mandatory)]
+        [string]$LatestVersion
+    )
+
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = "$($script:AppName) - Updating"
+    $form.StartPosition = "CenterScreen"
+    $form.Size = New-Object System.Drawing.Size(460, 165)
+    $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+    $form.MaximizeBox = $false
+    $form.MinimizeBox = $false
+    $form.ControlBox = $false
+    $form.ShowInTaskbar = $false
+
+    $label = New-Object System.Windows.Forms.Label
+    $label.Text = "Downloading version $LatestVersion..."
+    $label.Location = New-Object System.Drawing.Point(24, 22)
+    $label.Size = New-Object System.Drawing.Size(400, 24)
+    $label.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+
+    $progressBar = New-Object System.Windows.Forms.ProgressBar
+    $progressBar.Location = New-Object System.Drawing.Point(24, 60)
+    $progressBar.Size = New-Object System.Drawing.Size(400, 24)
+    $progressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Marquee
+    $progressBar.MarqueeAnimationSpeed = 25
+
+    $form.Controls.AddRange(@($label, $progressBar))
+    $form.Show()
+
+    return $form
+}
+
+function Test-JWCountdownPackage {
+    param(
+        [Parameter(Mandatory)]
+        [string]$PackagePath,
+
+        [Parameter(Mandatory)]
+        [string]$StageDirectory
+    )
+
+    $packageHash = (Get-FileHash -LiteralPath $PackagePath -Algorithm SHA256).Hash.ToLowerInvariant()
+
+    $zip = [System.IO.Compression.ZipFile]::OpenRead($PackagePath)
+
+    try {
+        foreach($entry in $zip.Entries){
+            $fullPath = [System.IO.Path]::GetFullPath((Join-Path $StageDirectory $entry.FullName))
+
+            $stageRoot = [System.IO.Path]::GetFullPath($StageDirectory).TrimEnd('\') + '\'
+
+            if(-not $fullPath.StartsWith($stageRoot, [System.StringComparison]::OrdinalIgnoreCase)){
+                throw "The update package contains an invalid path."
+            }
+        }
+    } finally {
+        $zip.Dispose()
     }
 
-    Write-JWCountdownLauncherLog -Message "JW Countdown Launcher version: $($script:Version)"
-    $latestRelease = Get-JWCountdownLatestGitHubRelease
+    Expand-Archive -LiteralPath $PackagePath -DestinationPath $StageDirectory -Force
 
-    if($null -eq $latestRelease){
-        Write-JWCountdownLauncherLog -Message "No usable remote release information. Starting local application."
+    $application = Get-ChildItem `
+        -LiteralPath $StageDirectory `
+        -Filter $script:ApplicationFileName `
+        -File `
+        -Recurse `
+        -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+
+    $launcher = Get-ChildItem `
+        -LiteralPath $StageDirectory `
+        -Filter $script:LauncherFileName `
+        -File `
+        -Recurse `
+        -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+
+    $batch = Get-ChildItem `
+        -LiteralPath $StageDirectory `
+        -Filter $script:BatchFileName `
+        -File `
+        -Recurse `
+        -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+
+    if(-not $application -or -not $launcher -or -not $batch){
+        throw "The downloaded package is incomplete."
+    }
+
+    return $packageHash
+}
+
+function New-JWCountdownUpdater {
+    param(
+        [Parameter(Mandatory)]
+        [string]$StageDirectory,
+
+        [Parameter(Mandatory)]
+        [string]$InstallDirectory,
+
+        [Parameter(Mandatory)]
+        [string]$LauncherProcessId
+    )
+
+    $updaterPath = Join-Path $script:UpdateWorkingDirectory "install-update.ps1"
+
+    $escapedStage = $StageDirectory.Replace("'", "''")
+    $escapedInstall = $InstallDirectory.Replace("'", "''")
+    $escapedApplication = $script:ApplicationFileName.Replace("'", "''")
+    $escapedLauncher = $script:LauncherFileName.Replace("'", "''")
+    $escapedBatch = $script:BatchFileName.Replace("'", "''")
+
+    $updaterScript = @"
+Set-StrictMode -Version Latest
+
+`$stageDirectory = '$escapedStage'
+`$installDirectory = '$escapedInstall'
+`$applicationFileName = '$escapedApplication'
+`$launcherFileName = '$escapedLauncher'
+`$batchFileName = '$escapedBatch'
+`$launcherProcessId = $LauncherProcessId
+
+try {
+    while(Get-Process -Id `$launcherProcessId -ErrorAction SilentlyContinue){
+        Start-Sleep -Milliseconds 250
+    }
+
+    `$packageRoot = Get-ChildItem -LiteralPath `$stageDirectory -Filter `$applicationFileName -File -Recurse | Select-Object -First 1
+
+    if(-not `$packageRoot){ throw "Updated application package is missing." }
+
+    `$sourceDirectory = `$packageRoot.Directory.FullName
+    `$backupDirectory = Join-Path `$env:TEMP "JWCountdownUpdateBackup-`$(Get-Random)"
+
+    Copy-Item -LiteralPath `$installDirectory -Destination `$backupDirectory -Recurse -Force
+
+    Get-ChildItem -LiteralPath `$sourceDirectory -Force | Copy-Item -Destination `$installDirectory -Recurse -Force
+
+    if(-not (Test-Path -LiteralPath (Join-Path `$installDirectory `$applicationFileName) -PathType Leaf)){
+        throw "Updated application could not be validated."
+    }
+
+    `$applicationPath = Join-Path `$installDirectory `$applicationFileName
+
+    Start-Process `
+        -FilePath "powershell.exe" `
+        -ArgumentList @(
+            "-ExecutionPolicy", "Bypass",
+            "-NoProfile",
+            "-WindowStyle", "Hidden",
+            "-File", "`"`$applicationPath`""
+        ) `
+        -WorkingDirectory `$installDirectory `
+        -ErrorAction Stop
+
+    Remove-Item -LiteralPath `$backupDirectory -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath `$stageDirectory -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath '$updaterPath' -Force -ErrorAction SilentlyContinue
+}
+catch {
+    try {
+        if(Test-Path -LiteralPath `$backupDirectory){
+            Remove-Item -LiteralPath `$installDirectory -Recurse -Force
+            Copy-Item -LiteralPath `$backupDirectory -Destination `$installDirectory -Recurse -Force
+            Remove-Item -LiteralPath `$backupDirectory -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    } catch {
+    }
+
+    [System.Windows.Forms.MessageBox]::Show(
+        "The update could not be installed.`r`n`r`n`$(`$_.Exception.Message)",
+        "$($script:AppName) - Update",
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Error
+    ) | Out-Null
+
+    Remove-Item -LiteralPath `$stageDirectory -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath '$updaterPath' -Force -ErrorAction SilentlyContinue
+}
+"@
+
+    Set-Content -LiteralPath $updaterPath -Value $updaterScript -Encoding UTF8
+
+    Start-Process `
+        -FilePath "powershell.exe" `
+        -ArgumentList @(
+            "-ExecutionPolicy", "Bypass",
+            "-NoProfile",
+            "-WindowStyle", "Hidden",
+            "-File", "`"$updaterPath`""
+        ) `
+        -WorkingDirectory $script:UpdateWorkingDirectory `
+        -ErrorAction Stop
+}
+
+function Install-JWCountdownUpdate {
+    param(
+        [Parameter(Mandatory)]
+        $Release,
+
+        [Parameter(Mandatory)]
+        [string]$LatestVersion
+    )
+
+    if(-not (Test-JWCountdownInstanceAvailable)){
+        Show-JWMessage `
+            -Message "$($script:AppName) is already running.`r`n`r`nClose the current countdown before installing the update." `
+            -Icon ([System.Windows.Forms.MessageBoxIcon]::Warning)
+
+        return $false
+    }
+
+    $progressForm = $null
+    $packagePath = $null
+    $stageDirectory = $null
+
+    try {
+        $asset = Get-JWCountdownUpdateAsset -Release $Release
+
+        if([string]::IsNullOrWhiteSpace($asset.digest) -or $asset.digest -notlike "sha256:*"){
+            throw "The GitHub release does not provide a SHA-256 digest for the update package."
+        }
+
+        if(-not (Test-Path -LiteralPath $script:UpdateWorkingDirectory)){
+            New-Item -ItemType Directory -Path $script:UpdateWorkingDirectory -Force | Out-Null
+        }
+
+        $workingId = [guid]::NewGuid().ToString("N")
+        $workingDirectory = Join-Path $script:UpdateWorkingDirectory $workingId
+        $packagePath = Join-Path $workingDirectory $asset.name
+        $stageDirectory = Join-Path $workingDirectory "stage"
+
+        New-Item -ItemType Directory -Path $workingDirectory -Force | Out-Null
+        New-Item -ItemType Directory -Path $stageDirectory -Force | Out-Null
+
+        $progressForm = Show-JWCountdownUpdateProgress -LatestVersion $LatestVersion
+
+        $headers = @{
+            "User-Agent" = "$($script:AppName)-Launcher/$($script:Version)"
+            "Accept"     = "application/octet-stream"
+        }
+
+        Invoke-WebRequest `
+            -Uri $asset.browser_download_url `
+            -Headers $headers `
+            -OutFile $packagePath `
+            -TimeoutSec 120 `
+            -UseBasicParsing `
+            -ErrorAction Stop
+
+        $expectedHash = $asset.digest.Substring(7).ToLowerInvariant()
+        $actualHash = (Get-FileHash -LiteralPath $packagePath -Algorithm SHA256).Hash.ToLowerInvariant()
+
+        if($actualHash -ne $expectedHash){ throw "The downloaded package failed SHA-256 verification." }
+
+        Test-JWCountdownPackage `
+            -PackagePath $packagePath `
+            -StageDirectory $stageDirectory | Out-Null
+
+        if($progressForm){
+            $progressForm.Close()
+            $progressForm.Dispose()
+            $progressForm = $null
+        }
+
+        New-JWCountdownUpdater `
+            -StageDirectory $stageDirectory `
+            -InstallDirectory $PSScriptRoot `
+            -LauncherProcessId $PID
+
+        return $true
+    } catch {
+        if($progressForm){
+            $progressForm.Close()
+            $progressForm.Dispose()
+        }
+
+        if($workingDirectory -and (Test-Path -LiteralPath $workingDirectory)){
+            Remove-Item -LiteralPath $workingDirectory -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        Show-JWMessage `
+            -Message "The update could not be downloaded or prepared.`r`n`r`n$($_.Exception.Message)" `
+            -Icon ([System.Windows.Forms.MessageBoxIcon]::Error)
+
+        return $false
+    }
+}
+
+function Start-JWCountdownLauncher {
+    if(-not (Test-JWCountdownInstanceAvailable)){
+        Show-JWMessage `
+            -Message "$($script:AppName) is already running." `
+            -Icon ([System.Windows.Forms.MessageBoxIcon]::Information)
+
+        return
+    }
+
+    $release = Get-JWCountdownLatestGitHubRelease
+
+    if(-not $release){
         Start-JWCountdownApplication
         return
     }
-    Write-JWCountdownLauncherLog -Message "Latest GitHub version: $($latestRelease.Version)"
-    $comparison = Compare-JWCountdownVersions -VersionA $script:Version -VersionB $latestRelease.Version
 
-    if($comparison -lt 0){
-        Write-JWCountdownLauncherLog -Message "A newer JW Countdown version is available."
-        Show-JWCountdownUpdateNotification  -Release $latestRelease
-    } elseif($comparison -eq 0){
-        Write-JWCountdownLauncherLog  -Message "JW Countdown is up to date."
-    } else {
-        Write-JWCountdownLauncherLog -Message "Local version is newer than the latest GitHub release."
+    try {
+        $latestVersion = (ConvertTo-JWCountdownVersion $release.tag_name).ToString()
+        $comparison = Compare-JWCountdownVersions `
+            -CurrentVersion $script:Version `
+            -LatestVersion $latestVersion
+    } catch {
+        Start-JWCountdownApplication
+        return
+    }
+
+    if($comparison -le 0){
+        Start-JWCountdownApplication
+        return
+    }
+
+    $action = Show-JWCountdownUpdateDialog `
+        -Release $release `
+        -LatestVersion $latestVersion
+
+    if($action -eq "Install"){
+        $updated = Install-JWCountdownUpdate `
+            -Release $release `
+            -LatestVersion $latestVersion
+
+        if($updated){ return}
     }
 
     Start-JWCountdownApplication
 }
 
-# ============================================================================
-# 11. ENTRY POINT
-# ============================================================================
-try {
-    Start-JWCountdownLauncher
-} catch {
-    Write-JWCountdownLauncherLog -Message "Fatal launcher error." -ErrorRecord $_
-    try {
-        [System.Windows.Forms.MessageBox]::Show(
-            "JW Countdown Launcher encountered an unexpected error.`r`n`r`n$($_.Exception.Message)",
-            $script:AppName,
-            [System.Windows.Forms.MessageBoxButtons]::OK,
-            [System.Windows.Forms.MessageBoxIcon]::Error
-        ) | Out-Null
-    } catch {
-        # No additional recovery is possible.
-    }
-    exit 1
-}
+Start-JWCountdownLauncher
