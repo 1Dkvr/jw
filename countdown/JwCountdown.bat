@@ -5,13 +5,17 @@
 :: ============================================================================
 ::
 :: Author      : 1Dkvr
-:: Copyright   : © 2026 1Dkvr. All rights reserved.
+:: Publisher   : Hold'inCorp.
+:: Copyright   : © 2026 Hold'inCorp. All rights reserved.
 :: Created     : 26.09.01
 :: Description : Starts the JW Countdown launcher and update manager.
 :: File        : JwCountdown.bat
 :: Runtime     : Windows PowerShell 5.1+
 :: Platform    : Microsoft Windows
-:: License     : Proprietary
+:: License     : Custom Non-Commercial Source-Available
+:: License URL : https://github.com/1Dkvr/LICENSE.md
+::
+:: This source code is subject to the terms defined in the `LICENSE.md` file located in the root of this repository or online at the URL above.
 ::
 :: ============================================================================
 
