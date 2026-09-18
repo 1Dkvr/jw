@@ -181,7 +181,7 @@ public static class JWCountdownConsole
     }
 
     try {
-        $consoleWindow = JWCountdownConsole]::GetConsoleWindow()
+        $consoleWindow = [JWCountdownConsole]::GetConsoleWindow()
         if($consoleWindow -ne [IntPtr]::Zero){
             [JWCountdownConsole]::ShowWindow($consoleWindow, 0) | Out-Null
         }
