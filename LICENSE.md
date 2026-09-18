@@ -10,7 +10,7 @@ This Agreement is governed by the defined terms set forth in the schedule below.
 | **[LICENSOR]** | *Hold'inCorp.* | The legal entity holding exclusive economic, commercial, and exploitation rights. |
 | **[AUTHOR]** | *1Dkvr* | The natural person, lead developer, and moral rights holder. |
 | **[SOFTWARE_NAME]** | *This Repository & Associated Assets* | Any software, project, script, codebase, library, binary, asset, or documentation in which this License is embedded or distributed. |
-| **[EFFECTIVE_DATE]** | *2026* | The initial publication or copyright creation year. |
+| **[EFFECTIVE_DATE]** | *2025* | The initial publication or copyright creation year. |
 | **[LICENSOR_JURISDICTION]** | *Paris, France* | Applicable governing law venue and courts of competent jurisdiction. |
 | **[LICENSING_CONTACT]** | *inprogress.company* | Official contact for commercial licensing inquiries. |
 
