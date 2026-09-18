@@ -35,17 +35,25 @@
         - Double-clicking or closing any countdown overlay closes the full session.
         - Pressing Escape closes the full countdown session.
         - When the countdown reaches zero, all overlays close automatically.
+        - If a selected display disappears or its display bounds change while
+          the countdown is running, the current countdown session is closed
+          cleanly.
 
     Application lifecycle:
-        - Only one JW Countdown process may own the application mutex.
+        - Only one JW Countdown process may run in the current Windows session.
         - Starting a second instance displays an informational message and exits.
         - Once a countdown session has started, the setup window is never shown again.
         - When the countdown ends or is closed, the application exits cleanly.
 
+    DPI behavior:
+        - Per-Monitor DPI awareness is enabled when supported by Windows.
+        - The application falls back to the older Per-Monitor DPI API when needed.
+        - A final System-DPI-aware fallback is used for older or restricted systems.
+
     Release metadata:
         - Application identity and release version are defined in one place.
         - No release version is hard-coded elsewhere in the application.
-        - The metadata structure is intended to be consumed by the future
+        - The metadata structure is intended to be consumed by future
           release and update tooling.
 
 .NOTES
@@ -79,8 +87,10 @@ Set-StrictMode -Version Latest
 # =====================================================================
 # 1. INITIALIZATION
 # =====================================================================
+
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+
 
 # =====================================================================
 # 2. APPLICATION METADATA
@@ -89,6 +99,7 @@ Add-Type -AssemblyName System.Drawing
 # Keep release information in one place. Future build tooling can update
 # this block without having to modify the application logic.
 #
+
 $script:ApplicationMetadata = [ordered]@{
     Name      = "JW Countdown"
     Version   = "26.09.15"
@@ -99,26 +110,56 @@ $script:AppName   = $script:ApplicationMetadata.Name
 $script:Version   = $script:ApplicationMetadata.Version
 $script:Developer = $script:ApplicationMetadata.Developer
 
+
 # =====================================================================
 # 2.1. APPLICATION CONSTANTS
 # =====================================================================
-$script:MutexName = "JWCountdown.SingleTimer"
-$script:DisplayIdentificationDuration = 1800
-$script:CountdownTimerInterval = 1000
-$script:OverlayHeightRatio = 0.25
+
+$script:MutexName =
+    "Local\JWCountdown.SingleTimer"
+
+$script:DisplayIdentificationDuration =
+    1800
+
+$script:CountdownTimerInterval =
+    1000
+
+$script:OverlayHeightRatio =
+    0.25
+
 
 # =====================================================================
 # 2.2. SINGLE APPLICATION INSTANCE
 # =====================================================================
 #
-# The mutex stays owned for the entire application session. This keeps
-# multiple countdown sessions from running at the same time.
+# The mutex is explicitly scoped to the current Windows session.
+# A second JW Countdown may therefore run in another Windows session.
 #
-$script:TimerMutex = New-Object System.Threading.Mutex($false, $script:MutexName)
-$script:TimerMutexOwned = $false
+
+$script:TimerMutex =
+    New-Object System.Threading.Mutex(
+        $false,
+        $script:MutexName
+    )
+
+$script:TimerMutexOwned =
+    $false
 
 try {
-    if(-not $script:TimerMutex.WaitOne(0, $false)){
+    try {
+        $mutexAcquired =
+            $script:TimerMutex.WaitOne(
+                0,
+                $false
+            )
+    }
+    catch [System.Threading.AbandonedMutexException] {
+        # The previous owner terminated unexpectedly. The current thread
+        # has ownership of the abandoned mutex and can safely continue.
+        $mutexAcquired = $true
+    }
+
+    if(-not $mutexAcquired){
         [System.Windows.Forms.MessageBox]::Show(
             "A $($script:AppName) is already running.",
             $script:AppName,
@@ -128,148 +169,324 @@ try {
 
         return
     }
-    $script:TimerMutexOwned = $true
+
+    $script:TimerMutexOwned =
+        $true
+
 
     # =================================================================
     # 2.3. DISPLAY SELECTION STATE
     # =================================================================
-    $script:SelectedScreenIndexes = New-Object System.Collections.Generic.List[int]
-    $script:ScreenButtons = @()
+
+    $script:SelectedScreenIndexes =
+        New-Object System.Collections.Generic.List[int]
+
+    $script:ScreenButtons =
+        @()
+
 
     # =================================================================
     # 2.4. COUNTDOWN STATE
     # =================================================================
-    $script:CountdownClosing = $false
+
+    $script:CountdownClosing =
+        $false
+
 
     # =================================================================
     # 3. UI COLORS
     # =================================================================
-    $ColorBackground = [System.Drawing.Color]::FromArgb(245, 247, 250)
-    $ColorSurface = [System.Drawing.Color]::White
 
-    $ColorTextPrimary = [System.Drawing.Color]::FromArgb(30, 35, 45)
-    $ColorTextSecondary = [System.Drawing.Color]::FromArgb(100, 110, 125)
+    $ColorBackground =
+        [System.Drawing.Color]::FromArgb(
+            245,
+            247,
+            250
+        )
 
-    $ColorBorder = [System.Drawing.Color]::FromArgb(215, 220, 228)
+    $ColorSurface =
+        [System.Drawing.Color]::White
 
-    $ColorAccent = [System.Drawing.Color]::FromArgb(37, 99, 235)
-    $ColorAccentLight = [System.Drawing.Color]::FromArgb(235, 243, 255)
+    $ColorTextPrimary =
+        [System.Drawing.Color]::FromArgb(
+            30,
+            35,
+            45
+        )
 
-    $ColorWhite = [System.Drawing.Color]::White
-    $ColorBlack = [System.Drawing.Color]::Black
-    $ColorTimer = [System.Drawing.Color]::Silver
+    $ColorTextSecondary =
+        [System.Drawing.Color]::FromArgb(
+            100,
+            110,
+            125
+        )
+
+    $ColorBorder =
+        [System.Drawing.Color]::FromArgb(
+            215,
+            220,
+            228
+        )
+
+    $ColorAccent =
+        [System.Drawing.Color]::FromArgb(
+            37,
+            99,
+            235
+        )
+
+    $ColorAccentLight =
+        [System.Drawing.Color]::FromArgb(
+            235,
+            243,
+            255
+        )
+
+    $ColorWhite =
+        [System.Drawing.Color]::White
+
+    $ColorBlack =
+        [System.Drawing.Color]::Black
+
+    $ColorTimer =
+        [System.Drawing.Color]::Silver
+
 
     # =================================================================
-    # 4. CONSOLE HIDING
+    # 4. WINDOWS NATIVE INTEROP
     # =================================================================
-    $consoleInterop = @'
+    #
+    # Keep native calls together so platform-specific behavior remains
+    # isolated from the application logic.
+    #
+
+    $nativeInterop = @'
 using System;
 using System.Runtime.InteropServices;
 
-public static class JWCountdownConsole
+public static class JWCountdownNative
 {
     [DllImport("kernel32.dll")]
     public static extern IntPtr GetConsoleWindow();
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool ShowWindow(
         IntPtr hWnd,
         int nCmdShow
     );
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetProcessDpiAwarenessContext(
+        IntPtr dpiContext
+    );
+
+    [DllImport("shcore.dll")]
+    private static extern int SetProcessDpiAwareness(
+        int value
+    );
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetProcessDPIAware();
+
+    public static bool EnablePerMonitorDpiAwareness()
+    {
+        try
+        {
+            // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+            if (SetProcessDpiAwarenessContext(new IntPtr(-4)))
+            {
+                return true;
+            }
+        }
+        catch (EntryPointNotFoundException)
+        {
+        }
+        catch (DllNotFoundException)
+        {
+        }
+
+        try
+        {
+            // PROCESS_PER_MONITOR_DPI_AWARE
+            if (SetProcessDpiAwareness(2) == 0)
+            {
+                return true;
+            }
+        }
+        catch (DllNotFoundException)
+        {
+        }
+
+        try
+        {
+            // Final fallback for older systems.
+            return SetProcessDPIAware();
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }
 '@
 
     try {
         Add-Type `
-            -TypeDefinition $consoleInterop `
+            -TypeDefinition $nativeInterop `
             -Language CSharp `
             -ErrorAction Stop
-    } catch {
-        [System.Diagnostics.Debug]::WriteLine("[$($script:AppName)] Unable to initialize console interop."
+    }
+    catch {
+        [System.Diagnostics.Debug]::WriteLine(
+            "[$($script:AppName)] Unable to initialize Windows native interop."
         )
     }
 
+
+    # =================================================================
+    # 4.1. DPI CONFIGURATION
+    # =================================================================
+
     try {
-        $consoleWindow = [JWCountdownConsole]::GetConsoleWindow()
-        if($consoleWindow -ne [IntPtr]::Zero){
-            [JWCountdownConsole]::ShowWindow($consoleWindow, 0) | Out-Null
+        if([JWCountdownNative]::EnablePerMonitorDpiAwareness()){
+            [System.Diagnostics.Debug]::WriteLine(
+                "[$($script:AppName)] Per-monitor DPI awareness enabled."
+            )
         }
-    } catch {
-        [System.Diagnostics.Debug]::WriteLine("[$($script:AppName)] Unable to hide the PowerShell console window.")
+        else {
+            [System.Diagnostics.Debug]::WriteLine(
+                "[$($script:AppName)] Unable to enable DPI awareness."
+            )
+        }
     }
+    catch {
+        [System.Diagnostics.Debug]::WriteLine(
+            "[$($script:AppName)] Unable to configure DPI awareness."
+        )
+    }
+
+
+    # =================================================================
+    # 4.2. CONSOLE HIDING
+    # =================================================================
+
+    try {
+        $consoleWindow =
+            [JWCountdownNative]::GetConsoleWindow()
+
+        if($consoleWindow -ne [IntPtr]::Zero){
+            [JWCountdownNative]::ShowWindow(
+                $consoleWindow,
+                0
+            ) | Out-Null
+        }
+    }
+    catch {
+        [System.Diagnostics.Debug]::WriteLine(
+            "[$($script:AppName)] Unable to hide the PowerShell console window."
+        )
+    }
+
 
     # =================================================================
     # 5. HELPER FUNCTIONS
     # =================================================================
+
     function New-JWFont {
         param(
             [Parameter(Mandatory = $true)]
             [float]$Size,
-            
+
             [System.Drawing.FontStyle]$Style =
                 [System.Drawing.FontStyle]::Regular
         )
 
-        return New-Object System.Drawing.Font("Arial", $Size, $Style)
+        return New-Object System.Drawing.Font(
+            "Arial",
+            $Size,
+            $Style
+        )
     }
+
 
     function Show-JWMessage {
         param(
             [Parameter(Mandatory = $true)]
             [string]$Message,
 
-            [Parameter(Mandatory = $false)]
-            [System.Windows.Forms.MessageBoxButtons]$Buttons = [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxButtons]$Buttons =
+                [System.Windows.Forms.MessageBoxButtons]::OK,
 
-            [Parameter(Mandatory = $false)]
-            [System.Windows.Forms.MessageBoxIcon]$Icon = [System.Windows.Forms.MessageBoxIcon]::Information
+            [System.Windows.Forms.MessageBoxIcon]$Icon =
+                [System.Windows.Forms.MessageBoxIcon]::Information
         )
 
-        return [System.Windows.Forms.MessageBox]::Show($Message, $script:AppName, $Buttons, $Icon)
+        return [System.Windows.Forms.MessageBox]::Show(
+            $Message,
+            $script:AppName,
+            $Buttons,
+            $Icon
+        )
     }
+
 
     # =================================================================
     # 6. CONNECTED DISPLAYS
     # =================================================================
-    $screens = [System.Windows.Forms.Screen]::AllScreens
 
-    if($null -eq $screens -or $screens.Count -eq 0){
+    $screens =
+        [System.Windows.Forms.Screen]::AllScreens
+
+    if(
+        $null -eq $screens -or
+        $screens.Count -eq 0
+    ){
         Show-JWMessage `
             -Message "No display was detected." `
             -Icon ([System.Windows.Forms.MessageBoxIcon]::Error) |
             Out-Null
+
         return
     }
 
+
     # Select the primary display by default.
     #
-    # We explicitly look for the primary display instead of assuming
-    # that Screen.AllScreens[0] is always the primary monitor.
-    #
-    for($i = 0; $i -lt $screens.Count; $i++){
+
+    for(
+        $i = 0;
+        $i -lt $screens.Count;
+        $i++
+    ){
         if($screens[$i].Primary){
             $script:SelectedScreenIndexes.Add($i)
             break
         }
     }
 
-    # Fallback for an unexpected environment where no primary screen
-    # is reported.
-    #
-    if($script:SelectedScreenIndexes.Count -eq 0){
+
+    if(
+        $script:SelectedScreenIndexes.Count -eq 0
+    ){
         $script:SelectedScreenIndexes.Add(0)
     }
+
 
     # =================================================================
     # 7. DISPLAY IDENTIFICATION
     # =================================================================
+
     function Show-DisplayIdentification {
         param(
             [Parameter(Mandatory = $true)]
             [System.Windows.Forms.Screen[]]$Displays
         )
 
-        $identifierWindows = @()
+        $identifierWindows =
+            @()
 
         try {
             for(
@@ -277,10 +494,14 @@ public static class JWCountdownConsole
                 $i -lt $Displays.Count;
                 $i++
             ){
-                $screen = $Displays[$i]
+                $screen =
+                    $Displays[$i]
 
                 $identifierForm =
                     New-Object System.Windows.Forms.Form
+
+                $identifierForm.AutoScaleMode =
+                    [System.Windows.Forms.AutoScaleMode]::Dpi
 
                 $identifierForm.FormBorderStyle =
                     [System.Windows.Forms.FormBorderStyle]::None
@@ -335,13 +556,13 @@ public static class JWCountdownConsole
                 $identifierForm.Show()
             }
 
-
             [System.Windows.Forms.Application]::DoEvents()
 
             Start-Sleep `
                 -Milliseconds $script:DisplayIdentificationDuration
 
-        } finally {
+        }
+        finally {
             foreach(
                 $identifierForm in
                 $identifierWindows
@@ -350,8 +571,17 @@ public static class JWCountdownConsole
                     $null -ne $identifierForm -and
                     -not $identifierForm.IsDisposed
                 ){
-                    $identifierForm.Close()
-                    $identifierForm.Dispose()
+                    try {
+                        $identifierForm.Close()
+                    }
+                    catch {
+                    }
+
+                    try {
+                        $identifierForm.Dispose()
+                    }
+                    catch {
+                    }
                 }
             }
         }
@@ -395,6 +625,64 @@ public static class JWCountdownConsole
     }
 
 
+    function Get-JWDisplaySignature {
+        param(
+            [Parameter(Mandatory = $true)]
+            [System.Windows.Forms.Screen]$Display
+        )
+
+        return "{0}|{1}|{2}|{3}|{4}" -f `
+            $Display.DeviceName,
+            $Display.Bounds.X,
+            $Display.Bounds.Y,
+            $Display.Bounds.Width,
+            $Display.Bounds.Height
+    }
+
+
+    function Test-JWDisplayConfiguration {
+        param(
+            [Parameter(Mandatory = $true)]
+            [System.Windows.Forms.Screen[]]$Displays,
+
+            [Parameter(Mandatory = $true)]
+            [hashtable]$OriginalSignatures
+        )
+
+        $currentScreens =
+            [System.Windows.Forms.Screen]::AllScreens
+
+        foreach(
+            $display in
+            $Displays
+        ){
+            $currentDisplay =
+                $currentScreens |
+                    Where-Object {
+                        $_.DeviceName -eq $display.DeviceName
+                    } |
+                    Select-Object -First 1
+
+            if($null -eq $currentDisplay){
+                return $false
+            }
+
+            $currentSignature =
+                Get-JWDisplaySignature `
+                    -Display $currentDisplay
+
+            if(
+                $currentSignature -ne
+                $OriginalSignatures[$display.DeviceName]
+            ){
+                return $false
+            }
+        }
+
+        return $true
+    }
+
+
     function Close-JWCountdownOverlays {
         param(
             [Parameter(Mandatory = $true)]
@@ -408,7 +696,8 @@ public static class JWCountdownConsole
             return
         }
 
-        $script:CountdownClosing = $true
+        $script:CountdownClosing =
+            $true
 
         try {
             if($null -ne $Timer){
@@ -426,7 +715,8 @@ public static class JWCountdownConsole
                     $overlay.Close()
                 }
             }
-        } catch {
+        }
+        catch {
             [System.Diagnostics.Debug]::WriteLine(
                 "[$($script:AppName)] Error while closing countdown overlays: $($_.Exception.Message)"
             )
@@ -438,8 +728,9 @@ public static class JWCountdownConsole
     # 9. MULTI-DISPLAY COUNTDOWN OVERLAY
     # =================================================================
     #
-    # One overlay is created for each selected display.
-    # A single timer drives every overlay so they remain synchronized.
+    # All overlay creation, execution and cleanup lives inside one
+    # try/finally block so an unexpected error cannot leave resources
+    # behind.
     #
 
     function Show-CountdownOverlays {
@@ -451,199 +742,241 @@ public static class JWCountdownConsole
             [datetime]$TargetTime
         )
 
-        $overlayWindows = @()
-        $timerLabels = @()
+        $overlayWindows =
+            @()
+
+        $timerLabels =
+            @()
 
         $timer =
-            New-Object System.Windows.Forms.Timer
+            $null
 
-        $timer.Interval =
-            $script:CountdownTimerInterval
-
-
-        # --------------------------------------------------------------
-        # Create the overlays.
-        # --------------------------------------------------------------
+        $originalSignatures =
+            @{}
 
         foreach(
             $display in
             $Displays
         ){
-            $overlay =
-                New-Object System.Windows.Forms.Form
-
-            $overlay.FormBorderStyle =
-                [System.Windows.Forms.FormBorderStyle]::None
-
-            $overlay.StartPosition =
-                [System.Windows.Forms.FormStartPosition]::Manual
-
-            $overlay.TopMost =
-                $true
-
-            $overlay.ShowInTaskbar =
-                $false
-
-            $overlay.KeyPreview =
-                $true
-
-            $overlay.BackColor =
-                $ColorBlack
-
-            $overlay.TransparencyKey =
-                $ColorBlack
+            $originalSignatures[$display.DeviceName] =
+                Get-JWDisplaySignature `
+                    -Display $display
+        }
 
 
-            # The timer occupies the lower part of the selected display.
-            #
+        try {
+            $timer =
+                New-Object System.Windows.Forms.Timer
 
-            $overlayHeight =
-                [int](
-                    $display.Bounds.Height *
-                    $script:OverlayHeightRatio
+            $timer.Interval =
+                $script:CountdownTimerInterval
+
+
+            foreach(
+                $display in
+                $Displays
+            ){
+                $overlay =
+                    New-Object System.Windows.Forms.Form
+
+                $overlay.AutoScaleMode =
+                    [System.Windows.Forms.AutoScaleMode]::Dpi
+
+                $overlay.FormBorderStyle =
+                    [System.Windows.Forms.FormBorderStyle]::None
+
+                $overlay.StartPosition =
+                    [System.Windows.Forms.FormStartPosition]::Manual
+
+                $overlay.TopMost =
+                    $true
+
+                $overlay.ShowInTaskbar =
+                    $false
+
+                $overlay.KeyPreview =
+                    $true
+
+                $overlay.BackColor =
+                    $ColorBlack
+
+                $overlay.TransparencyKey =
+                    $ColorBlack
+
+
+                # The overlay occupies the lower 25% of the display.
+                #
+
+                $overlayHeight =
+                    [int](
+                        $display.Bounds.Height *
+                        $script:OverlayHeightRatio
+                    )
+
+                $overlay.Left =
+                    $display.Bounds.X
+
+                $overlay.Top =
+                    $display.Bounds.Y +
+                    $display.Bounds.Height -
+                    $overlayHeight
+
+                $overlay.Width =
+                    $display.Bounds.Width
+
+                $overlay.Height =
+                    $overlayHeight
+
+
+                $timerLabel =
+                    New-Object System.Windows.Forms.Label
+
+                $timerLabel.Dock =
+                    [System.Windows.Forms.DockStyle]::Fill
+
+                $timerLabel.TextAlign =
+                    [System.Drawing.ContentAlignment]::MiddleCenter
+
+                $timerLabel.BackColor =
+                    $ColorBlack
+
+                $timerLabel.ForeColor =
+                    $ColorTimer
+
+                $timerLabel.Font =
+                    New-JWFont `
+                        -Size 45 `
+                        -Style ([System.Drawing.FontStyle]::Regular)
+
+                $timerLabel.Text =
+                    "00:00"
+
+
+                $overlay.Controls.Add(
+                    $timerLabel
                 )
 
-            $overlay.Left =
-                $display.Bounds.X
 
-            $overlay.Top =
-                $display.Bounds.Y +
-                $display.Bounds.Height -
-                $overlayHeight
+                # Closing any one overlay ends the full countdown session.
+                #
 
-            $overlay.Width =
-                $display.Bounds.Width
-
-            $overlay.Height =
-                $overlayHeight
-
-
-            $timerLabel =
-                New-Object System.Windows.Forms.Label
-
-            $timerLabel.Dock =
-                [System.Windows.Forms.DockStyle]::Fill
-
-            $timerLabel.TextAlign =
-                [System.Drawing.ContentAlignment]::MiddleCenter
-
-            $timerLabel.BackColor =
-                $ColorBlack
-
-            $timerLabel.ForeColor =
-                $ColorTimer
-
-            $timerLabel.Font =
-                New-JWFont `
-                    -Size 45 `
-                    -Style ([System.Drawing.FontStyle]::Regular)
-
-            $timerLabel.Text =
-                "00:00"
-
-
-            $overlay.Controls.Add(
-                $timerLabel
-            )
-
-
-            # Any manual close ends the complete countdown session.
-            #
-
-            $overlay.Add_FormClosed({
-                Close-JWCountdownOverlays `
-                    -Overlays $overlayWindows `
-                    -Timer $timer
-            })
-
-            $overlay.Add_DoubleClick({
-                Close-JWCountdownOverlays `
-                    -Overlays $overlayWindows `
-                    -Timer $timer
-            })
-
-            $timerLabel.Add_DoubleClick({
-                Close-JWCountdownOverlays `
-                    -Overlays $overlayWindows `
-                    -Timer $timer
-            })
-
-            $overlay.Add_KeyDown({
-                if(
-                    $_.KeyCode -eq
-                    [System.Windows.Forms.Keys]::Escape
-                ){
+                $overlay.Add_FormClosed({
                     Close-JWCountdownOverlays `
                         -Overlays $overlayWindows `
                         -Timer $timer
+                })
+
+                $overlay.Add_DoubleClick({
+                    Close-JWCountdownOverlays `
+                        -Overlays $overlayWindows `
+                        -Timer $timer
+                })
+
+                $timerLabel.Add_DoubleClick({
+                    Close-JWCountdownOverlays `
+                        -Overlays $overlayWindows `
+                        -Timer $timer
+                })
+
+                $overlay.Add_KeyDown({
+                    if(
+                        $_.KeyCode -eq
+                        [System.Windows.Forms.Keys]::Escape
+                    ){
+                        Close-JWCountdownOverlays `
+                            -Overlays $overlayWindows `
+                            -Timer $timer
+                    }
+                })
+
+
+                $overlayWindows +=
+                    $overlay
+
+                $timerLabels +=
+                    $timerLabel
+            }
+
+
+            $timer.Add_Tick({
+                # Display changes are checked before updating the labels.
+                # This prevents orphaned windows after a monitor is removed
+                # or its desktop bounds change during the countdown.
+                #
+
+                if(
+                    -not (
+                        Test-JWDisplayConfiguration `
+                            -Displays $Displays `
+                            -OriginalSignatures $originalSignatures
+                    )
+                ){
+                    [System.Diagnostics.Debug]::WriteLine(
+                        "[$($script:AppName)] Display configuration changed during countdown."
+                    )
+
+                    Close-JWCountdownOverlays `
+                        -Overlays $overlayWindows `
+                        -Timer $timer
+
+                    return
+                }
+
+
+                $remaining =
+                    $TargetTime - [datetime]::Now
+
+
+                if($remaining.TotalSeconds -le 0){
+                    Close-JWCountdownOverlays `
+                        -Overlays $overlayWindows `
+                        -Timer $timer
+
+                    return
+                }
+
+
+                $countdownText =
+                    Get-JWCountdownText `
+                        -Remaining $remaining
+
+
+                foreach(
+                    $label in
+                    $timerLabels
+                ){
+                    if(
+                        $null -ne $label -and
+                        -not $label.IsDisposed
+                    ){
+                        $label.Text =
+                            $countdownText
+                    }
                 }
             })
 
 
-            $overlayWindows +=
-                $overlay
+            # Show the correct value immediately.
+            #
 
-            $timerLabels +=
-                $timerLabel
-        }
-
-
-        # --------------------------------------------------------------
-        # Update all displays from one timer.
-        # --------------------------------------------------------------
-
-        $timer.Add_Tick({
-            $remaining =
+            $initialRemaining =
                 $TargetTime - [datetime]::Now
 
-            if($remaining.TotalSeconds -le 0){
-                Close-JWCountdownOverlays `
-                    -Overlays $overlayWindows `
-                    -Timer $timer
-
-                return
-            }
-
-            $countdownText =
+            $initialText =
                 Get-JWCountdownText `
-                    -Remaining $remaining
+                    -Remaining $initialRemaining
+
 
             foreach(
                 $label in
                 $timerLabels
             ){
-                if(
-                    $null -ne $label -and
-                    -not $label.IsDisposed
-                ){
-                    $label.Text =
-                        $countdownText
-                }
+                $label.Text =
+                    $initialText
             }
-        })
 
 
-        # Show the correct value immediately.
-        #
-
-        $initialRemaining =
-            $TargetTime - [datetime]::Now
-
-        $initialText =
-            Get-JWCountdownText `
-                -Remaining $initialRemaining
-
-        foreach(
-            $label in
-            $timerLabels
-        ){
-            $label.Text =
-                $initialText
-        }
-
-
-        try {
-            # Show every overlay except the first one. The first overlay
+            # Show all overlays except the first one. The first overlay
             # owns the modal message loop for the countdown session.
             #
 
@@ -655,13 +988,22 @@ public static class JWCountdownConsole
                 $overlayWindows[$overlayIndex].Show()
             }
 
+
             $timer.Start()
 
-            if($overlayWindows.Count -gt 0){
+
+            if(
+                $overlayWindows.Count -gt 0
+            ){
                 $overlayWindows[0].ShowDialog() | Out-Null
             }
-        } finally {
-            $timer.Stop()
+
+        }
+        finally {
+            if($null -ne $timer){
+                $timer.Stop()
+            }
+
 
             foreach(
                 $overlay in
@@ -673,12 +1015,13 @@ public static class JWCountdownConsole
                 ){
                     try {
                         $overlay.Close()
-                    } catch {
-                        # The overlay may already have been closed by its
-                        # own FormClosed event.
+                    }
+                    catch {
+                        # The overlay may already have been closed.
                     }
                 }
             }
+
 
             foreach(
                 $overlay in
@@ -688,9 +1031,14 @@ public static class JWCountdownConsole
                     $null -ne $overlay -and
                     -not $overlay.IsDisposed
                 ){
-                    $overlay.Dispose()
+                    try {
+                        $overlay.Dispose()
+                    }
+                    catch {
+                    }
                 }
             }
+
 
             foreach(
                 $label in
@@ -700,11 +1048,23 @@ public static class JWCountdownConsole
                     $null -ne $label -and
                     -not $label.IsDisposed
                 ){
-                    $label.Dispose()
+                    try {
+                        $label.Dispose()
+                    }
+                    catch {
+                    }
                 }
             }
 
-            $timer.Dispose()
+
+            if($null -ne $timer){
+                try {
+                    $timer.Dispose()
+                }
+                catch {
+                }
+            }
+
 
             $script:CountdownClosing =
                 $false
@@ -718,6 +1078,9 @@ public static class JWCountdownConsole
 
     $setupForm =
         New-Object System.Windows.Forms.Form
+
+    $setupForm.AutoScaleMode =
+        [System.Windows.Forms.AutoScaleMode]::Dpi
 
     $setupForm.Text =
         $script:AppName
@@ -1011,7 +1374,8 @@ public static class JWCountdownConsole
         [System.Windows.Forms.FlowDirection]::LeftToRight
 
 
-    $script:ScreenButtons = @()
+    $script:ScreenButtons =
+        @()
 
 
     # =================================================================
@@ -1059,6 +1423,7 @@ public static class JWCountdownConsole
 
         $totalCount =
             $screens.Count
+
 
         if($selectedCount -eq 0){
             $selectionSummaryLabel.Text =
@@ -1383,19 +1748,34 @@ public static class JWCountdownConsole
 
 
     $identifyButton.Add_Click({
-        $identifyButton.Enabled = $false
-        $startButton.Enabled = $false
-        $selectAllButton.Enabled = $false
-        $clearSelectionButton.Enabled = $false
+        $identifyButton.Enabled =
+            $false
+
+        $startButton.Enabled =
+            $false
+
+        $selectAllButton.Enabled =
+            $false
+
+        $clearSelectionButton.Enabled =
+            $false
 
         try {
             Show-DisplayIdentification `
                 -Displays $screens
-        } finally {
-            $identifyButton.Enabled = $true
-            $startButton.Enabled = $true
-            $selectAllButton.Enabled = $true
-            $clearSelectionButton.Enabled = $true
+        }
+        finally {
+            $identifyButton.Enabled =
+                $true
+
+            $startButton.Enabled =
+                $true
+
+            $selectAllButton.Enabled =
+                $true
+
+            $clearSelectionButton.Enabled =
+                $true
         }
     })
 
@@ -1475,9 +1855,8 @@ public static class JWCountdownConsole
                         $selectedTime.Minute,
                         0
                     )
-            } catch {
-                # Fallback kept for PowerShell environments where ::new()
-                # is not available as expected.
+            }
+            catch {
                 $targetTime =
                     Get-Date `
                         -Year $now.Year `
@@ -1488,9 +1867,6 @@ public static class JWCountdownConsole
                         -Second 0
             }
 
-
-            # A time that already passed today is treated as tomorrow.
-            #
 
             if($targetTime -le $now){
                 $targetTime =
@@ -1538,8 +1914,7 @@ public static class JWCountdownConsole
             }
 
 
-            # The setup window is closed after the countdown session.
-            # It is never displayed again during this process.
+            # The setup window is never shown again after START TIMER.
             #
 
             $setupForm.Hide()
@@ -1548,7 +1923,8 @@ public static class JWCountdownConsole
                 Show-CountdownOverlays `
                     -Displays $selectedScreens `
                     -TargetTime $targetTime
-            } finally {
+            }
+            finally {
                 if(
                     $null -ne $setupForm -and
                     -not $setupForm.IsDisposed
@@ -1557,7 +1933,8 @@ public static class JWCountdownConsole
                 }
             }
 
-        } catch {
+        }
+        catch {
             Show-JWMessage `
                 -Message (
                     "An unexpected error occurred.`r`n`r`n" +
@@ -1623,7 +2000,8 @@ public static class JWCountdownConsole
 
     try {
         $setupForm.ShowDialog() | Out-Null
-    } finally {
+    }
+    finally {
         if(
             $null -ne $setupForm -and
             -not $setupForm.IsDisposed
@@ -1632,9 +2010,8 @@ public static class JWCountdownConsole
         }
     }
 
-} finally {
-
-
+}
+finally {
     # =================================================================
     # 27. RELEASE SINGLE INSTANCE MUTEX
     # =================================================================
@@ -1642,7 +2019,8 @@ public static class JWCountdownConsole
     if($script:TimerMutexOwned){
         try {
             $script:TimerMutex.ReleaseMutex()
-        } catch {
+        }
+        catch {
             [System.Diagnostics.Debug]::WriteLine(
                 "[$($script:AppName)] Unable to release the single-instance mutex."
             )
@@ -1658,7 +2036,8 @@ public static class JWCountdownConsole
         if($null -ne $script:TimerMutex){
             $script:TimerMutex.Dispose()
         }
-    } catch {
+    }
+    catch {
         [System.Diagnostics.Debug]::WriteLine(
             "[$($script:AppName)] Unable to dispose the single-instance mutex."
         )
