@@ -3,8 +3,7 @@
     JW Countdown - Lightweight multi-monitor countdown timer.
 
 .DESCRIPTION
-    JW Countdown displays a transparent countdown overlay simultaneously
-    on one or more selected monitors.
+    JW Countdown displays a transparent countdown overlay simultaneously on one or more selected monitors.
 
     The user only needs to:
         1. Select the meeting start time.
@@ -68,38 +67,28 @@
 
     Copyright © 2026 1Dkvr. All rights reserved.
 
-    This software and its source code are proprietary and protected by
-    applicable intellectual property laws.
+    This software and its source code are proprietary and protected by applicable intellectual property laws.
 
-    Unauthorized copying, modification, distribution, publication,
-    sublicensing or commercial use is prohibited without prior authorization
-    from the copyright holder.
+    Unauthorized copying, modification, distribution, publication, sublicensing or commercial use is prohibited without prior authorization from the copyright holder.
 
     No external module or third-party dependency is required.
 
-    Future release tooling may add package integrity and Authenticode
-    signature verification without changing the countdown application itself.
+    Future release tooling may add package integrity and Authenticode signature verification without changing the countdown application itself.
 #>
-
 Set-StrictMode -Version Latest
-
 
 # =====================================================================
 # 1. INITIALIZATION
 # =====================================================================
-
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
-
 
 # =====================================================================
 # 2. APPLICATION METADATA
 # =====================================================================
 #
-# Keep release information in one place. Future build tooling can update
-# this block without having to modify the application logic.
+# Keep release information in one place. Future build tooling can update this block without having to modify the application logic.
 #
-
 $script:ApplicationMetadata = [ordered]@{
     Name      = "JW Countdown"
     Version   = "26.09.15"
@@ -110,52 +99,28 @@ $script:AppName   = $script:ApplicationMetadata.Name
 $script:Version   = $script:ApplicationMetadata.Version
 $script:Developer = $script:ApplicationMetadata.Developer
 
-
 # =====================================================================
 # 2.1. APPLICATION CONSTANTS
 # =====================================================================
-
-$script:MutexName =
-    "Local\JWCountdown.SingleTimer"
-
-$script:DisplayIdentificationDuration =
-    1800
-
-$script:CountdownTimerInterval =
-    1000
-
-$script:OverlayHeightRatio =
-    0.25
-
+$script:MutexName = "Local\JWCountdown.SingleTimer"
+$script:DisplayIdentificationDuration = 1800
+$script:CountdownTimerInterval = 1000
+$script:OverlayHeightRatio = 0.25
 
 # =====================================================================
 # 2.2. SINGLE APPLICATION INSTANCE
 # =====================================================================
 #
-# The mutex is explicitly scoped to the current Windows session.
-# A second JW Countdown may therefore run in another Windows session.
+# The mutex is explicitly scoped to the current Windows session. A second JW Countdown may therefore run in another Windows session.
 #
-
-$script:TimerMutex =
-    New-Object System.Threading.Mutex(
-        $false,
-        $script:MutexName
-    )
-
-$script:TimerMutexOwned =
-    $false
+$script:TimerMutex = New-Object System.Threading.Mutex($false, $script:MutexName)
+$script:TimerMutexOwned = $false
 
 try {
     try {
-        $mutexAcquired =
-            $script:TimerMutex.WaitOne(
-                0,
-                $false
-            )
+        $mutexAcquired = $script:TimerMutex.WaitOne(0, $false)
     }
     catch [System.Threading.AbandonedMutexException] {
-        # The previous owner terminated unexpectedly. The current thread
-        # has ownership of the abandoned mutex and can safely continue.
         $mutexAcquired = $true
     }
 
@@ -170,102 +135,47 @@ try {
         return
     }
 
-    $script:TimerMutexOwned =
-        $true
-
+    $script:TimerMutexOwned = $true
 
     # =================================================================
     # 2.3. DISPLAY SELECTION STATE
     # =================================================================
-
-    $script:SelectedScreenIndexes =
-        New-Object System.Collections.Generic.List[int]
-
-    $script:ScreenButtons =
-        @()
-
+    $script:SelectedScreenIndexes = New-Object System.Collections.Generic.List[int]
+    $script:ScreenButtons = @()
 
     # =================================================================
     # 2.4. COUNTDOWN STATE
     # =================================================================
-
-    $script:CountdownClosing =
-        $false
-
+    $script:CountdownClosing = $false
 
     # =================================================================
     # 3. UI COLORS
     # =================================================================
+    $ColorBackground = [System.Drawing.Color]::FromArgb(245, 247, 250)
+    $ColorSurface = [System.Drawing.Color]::White
 
-    $ColorBackground =
-        [System.Drawing.Color]::FromArgb(
-            245,
-            247,
-            250
-        )
+    $ColorTextPrimary = [System.Drawing.Color]::FromArgb(30, 35, 45)
+    $ColorTextSecondary = [System.Drawing.Color]::FromArgb(100, 110, 125)
 
-    $ColorSurface =
-        [System.Drawing.Color]::White
+    $ColorBorder = [System.Drawing.Color]::FromArgb(215, 220, 228)
+    $ColorAccent = [System.Drawing.Color]::FromArgb(37, 99, 235)
+    $ColorAccentLight = [System.Drawing.Color]::FromArgb(235, 243, 255)
 
-    $ColorTextPrimary =
-        [System.Drawing.Color]::FromArgb(
-            30,
-            35,
-            45
-        )
-
-    $ColorTextSecondary =
-        [System.Drawing.Color]::FromArgb(
-            100,
-            110,
-            125
-        )
-
-    $ColorBorder =
-        [System.Drawing.Color]::FromArgb(
-            215,
-            220,
-            228
-        )
-
-    $ColorAccent =
-        [System.Drawing.Color]::FromArgb(
-            37,
-            99,
-            235
-        )
-
-    $ColorAccentLight =
-        [System.Drawing.Color]::FromArgb(
-            235,
-            243,
-            255
-        )
-
-    $ColorWhite =
-        [System.Drawing.Color]::White
-
-    $ColorBlack =
-        [System.Drawing.Color]::Black
-
-    $ColorTimer =
-        [System.Drawing.Color]::Silver
-
+    $ColorWhite = [System.Drawing.Color]::White
+    $ColorBlack = [System.Drawing.Color]::Black
+    $ColorTimer = [System.Drawing.Color]::Silver
 
     # =================================================================
     # 4. WINDOWS NATIVE INTEROP
     # =================================================================
     #
-    # Keep native calls together so platform-specific behavior remains
-    # isolated from the application logic.
+    # Keep native calls together so platform-specific behavior remains isolated from the application logic.
     #
-
     $nativeInterop = @'
 using System;
 using System.Runtime.InteropServices;
 
-public static class JWCountdownNative
-{
+public static class JWCountdownNative {
     [DllImport("kernel32.dll")]
     public static extern IntPtr GetConsoleWindow();
 
@@ -291,42 +201,28 @@ public static class JWCountdownNative
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetProcessDPIAware();
 
-    public static bool EnablePerMonitorDpiAwareness()
-    {
-        try
-        {
+    public static bool EnablePerMonitorDpiAwareness(){
+        try {
             // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
-            if (SetProcessDpiAwarenessContext(new IntPtr(-4)))
-            {
+            if(SetProcessDpiAwarenessContext(new IntPtr(-4))){
                 return true;
             }
-        }
-        catch (EntryPointNotFoundException)
-        {
-        }
-        catch (DllNotFoundException)
-        {
+        } catch (EntryPointNotFoundException) {
+        } catch (DllNotFoundException) {
         }
 
-        try
-        {
+        try {
             // PROCESS_PER_MONITOR_DPI_AWARE
-            if (SetProcessDpiAwareness(2) == 0)
-            {
+            if(SetProcessDpiAwareness(2) == 0){
                 return true;
             }
-        }
-        catch (DllNotFoundException)
-        {
+        } catch (DllNotFoundException) {
         }
 
-        try
-        {
+        try {
             // Final fallback for older systems.
             return SetProcessDPIAware();
-        }
-        catch
-        {
+        } catch {
             return false;
         }
     }
@@ -340,61 +236,38 @@ public static class JWCountdownNative
             -ErrorAction Stop
     }
     catch {
-        [System.Diagnostics.Debug]::WriteLine(
-            "[$($script:AppName)] Unable to initialize Windows native interop."
-        )
+        [System.Diagnostics.Debug]::WriteLine("[$($script:AppName)] Unable to initialize Windows native interop.")
     }
-
 
     # =================================================================
     # 4.1. DPI CONFIGURATION
     # =================================================================
-
     try {
         if([JWCountdownNative]::EnablePerMonitorDpiAwareness()){
-            [System.Diagnostics.Debug]::WriteLine(
-                "[$($script:AppName)] Per-monitor DPI awareness enabled."
-            )
+            [System.Diagnostics.Debug]::WriteLine("[$($script:AppName)] Per-monitor DPI awareness enabled.")
+        } else {
+            [System.Diagnostics.Debug]::WriteLine("[$($script:AppName)] Unable to enable DPI awareness.")
         }
-        else {
-            [System.Diagnostics.Debug]::WriteLine(
-                "[$($script:AppName)] Unable to enable DPI awareness."
-            )
-        }
+    } catch {
+        [System.Diagnostics.Debug]::WriteLine("[$($script:AppName)] Unable to configure DPI awareness.")
     }
-    catch {
-        [System.Diagnostics.Debug]::WriteLine(
-            "[$($script:AppName)] Unable to configure DPI awareness."
-        )
-    }
-
 
     # =================================================================
     # 4.2. CONSOLE HIDING
     # =================================================================
-
     try {
-        $consoleWindow =
-            [JWCountdownNative]::GetConsoleWindow()
+        $consoleWindow = [JWCountdownNative]::GetConsoleWindow()
 
         if($consoleWindow -ne [IntPtr]::Zero){
-            [JWCountdownNative]::ShowWindow(
-                $consoleWindow,
-                0
-            ) | Out-Null
+            [JWCountdownNative]::ShowWindow($consoleWindow, 0) | Out-Null
         }
+    } catch {
+        [System.Diagnostics.Debug]::WriteLine("[$($script:AppName)] Unable to hide the PowerShell console window.")
     }
-    catch {
-        [System.Diagnostics.Debug]::WriteLine(
-            "[$($script:AppName)] Unable to hide the PowerShell console window."
-        )
-    }
-
 
     # =================================================================
     # 5. HELPER FUNCTIONS
     # =================================================================
-
     function New-JWFont {
         param(
             [Parameter(Mandatory = $true)]
@@ -404,11 +277,7 @@ public static class JWCountdownNative
                 [System.Drawing.FontStyle]::Regular
         )
 
-        return New-Object System.Drawing.Font(
-            "Arial",
-            $Size,
-            $Style
-        )
+        return New-Object System.Drawing.Font("Arial", $Size, $Style)
     }
 
 
@@ -417,33 +286,20 @@ public static class JWCountdownNative
             [Parameter(Mandatory = $true)]
             [string]$Message,
 
-            [System.Windows.Forms.MessageBoxButtons]$Buttons =
-                [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxButtons]$Buttons = [System.Windows.Forms.MessageBoxButtons]::OK,
 
-            [System.Windows.Forms.MessageBoxIcon]$Icon =
-                [System.Windows.Forms.MessageBoxIcon]::Information
+            [System.Windows.Forms.MessageBoxIcon]$Icon = [System.Windows.Forms.MessageBoxIcon]::Information
         )
 
-        return [System.Windows.Forms.MessageBox]::Show(
-            $Message,
-            $script:AppName,
-            $Buttons,
-            $Icon
-        )
+        return [System.Windows.Forms.MessageBox]::Show($Message, $script:AppName, $Buttons, $Icon)
     }
-
 
     # =================================================================
     # 6. CONNECTED DISPLAYS
     # =================================================================
+    $screens = [System.Windows.Forms.Screen]::AllScreens
 
-    $screens =
-        [System.Windows.Forms.Screen]::AllScreens
-
-    if(
-        $null -eq $screens -or
-        $screens.Count -eq 0
-    ){
+    if($null -eq $screens -or $screens.Count -eq 0){
         Show-JWMessage `
             -Message "No display was detected." `
             -Icon ([System.Windows.Forms.MessageBoxIcon]::Error) |
@@ -452,176 +308,94 @@ public static class JWCountdownNative
         return
     }
 
-
     # Select the primary display by default.
     #
-
-    for(
-        $i = 0;
-        $i -lt $screens.Count;
-        $i++
-    ){
+    for($i = 0; $i -lt $screens.Count; $i++){
         if($screens[$i].Primary){
             $script:SelectedScreenIndexes.Add($i)
             break
         }
     }
 
-
-    if(
-        $script:SelectedScreenIndexes.Count -eq 0
-    ){
+    if($script:SelectedScreenIndexes.Count -eq 0){
         $script:SelectedScreenIndexes.Add(0)
     }
-
 
     # =================================================================
     # 7. DISPLAY IDENTIFICATION
     # =================================================================
-
     function Show-DisplayIdentification {
         param(
             [Parameter(Mandatory = $true)]
             [System.Windows.Forms.Screen[]]$Displays
         )
 
-        $identifierWindows =
-            @()
+        $identifierWindows = @()
 
         try {
-            for(
-                $i = 0;
-                $i -lt $Displays.Count;
-                $i++
-            ){
-                $screen =
-                    $Displays[$i]
+            for($i = 0; $i -lt $Displays.Count; $i++){
+                $screen = $Displays[$i]
+                $identifierForm = New-Object System.Windows.Forms.Form
+                $identifierForm.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi
+                $identifierForm.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
+                $identifierForm.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+                $identifierForm.Bounds = $screen.Bounds
+                $identifierForm.TopMost = $true
+                $identifierForm.ShowInTaskbar = $false
+                $identifierForm.BackColor = $ColorBlack
 
-                $identifierForm =
-                    New-Object System.Windows.Forms.Form
-
-                $identifierForm.AutoScaleMode =
-                    [System.Windows.Forms.AutoScaleMode]::Dpi
-
-                $identifierForm.FormBorderStyle =
-                    [System.Windows.Forms.FormBorderStyle]::None
-
-                $identifierForm.StartPosition =
-                    [System.Windows.Forms.FormStartPosition]::Manual
-
-                $identifierForm.Bounds =
-                    $screen.Bounds
-
-                $identifierForm.TopMost =
-                    $true
-
-                $identifierForm.ShowInTaskbar =
-                    $false
-
-                $identifierForm.BackColor =
-                    $ColorBlack
-
-
-                $identifierLabel =
-                    New-Object System.Windows.Forms.Label
-
-                $identifierLabel.Dock =
-                    [System.Windows.Forms.DockStyle]::Fill
-
-                $identifierLabel.Text =
-                    ($i + 1).ToString()
-
-                $identifierLabel.ForeColor =
-                    [System.Drawing.Color]::White
-
-                $identifierLabel.BackColor =
-                    $ColorBlack
-
-                $identifierLabel.TextAlign =
-                    [System.Drawing.ContentAlignment]::MiddleCenter
-
-                $identifierLabel.Font =
-                    New-JWFont `
-                        -Size 150 `
-                        -Style ([System.Drawing.FontStyle]::Bold)
-
-
-                $identifierForm.Controls.Add(
-                    $identifierLabel
-                )
-
-                $identifierWindows +=
-                    $identifierForm
-
+                $identifierLabel = New-Object System.Windows.Forms.Label
+                $identifierLabel.Dock = [System.Windows.Forms.DockStyle]::Fill
+                $identifierLabel.Text = ($i + 1).ToString()
+                $identifierLabel.ForeColor = [System.Drawing.Color]::White
+                $identifierLabel.BackColor = $ColorBlack
+                $identifierLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+                $identifierLabel.Font = New-JWFont -Size 150 -Style ([System.Drawing.FontStyle]::Bold)
+                $identifierForm.Controls.Add($identifierLabel)
+                
+                $identifierWindows += $identifierForm
                 $identifierForm.Show()
             }
 
             [System.Windows.Forms.Application]::DoEvents()
 
-            Start-Sleep `
-                -Milliseconds $script:DisplayIdentificationDuration
-
+            Start-Sleep -Milliseconds $script:DisplayIdentificationDuration
         }
         finally {
-            foreach(
-                $identifierForm in
-                $identifierWindows
-            ){
-                if(
-                    $null -ne $identifierForm -and
-                    -not $identifierForm.IsDisposed
-                ){
+            foreach($identifierForm in $identifierWindows){
+                if($null -ne $identifierForm -and -not $identifierForm.IsDisposed){
                     try {
                         $identifierForm.Close()
-                    }
-                    catch {
+                    } catch {
                     }
 
                     try {
                         $identifierForm.Dispose()
-                    }
-                    catch {
+                    } catch {
                     }
                 }
             }
         }
     }
 
-
     # =================================================================
     # 8. COUNTDOWN HELPERS
     # =================================================================
-
     function Get-JWCountdownText {
         param(
             [Parameter(Mandatory = $true)]
             [timespan]$Remaining
         )
 
-        if($Remaining.TotalSeconds -le 0){
-            return "00:00"
-        }
+        if($Remaining.TotalSeconds -le 0){ return "00:00" }
 
         if($Remaining.TotalHours -ge 1){
-            $totalHours =
-                [int][Math]::Floor(
-                    $Remaining.TotalHours
-                )
-
-            return "{0:D2}:{1:D2}:{2:D2}" -f `
-                $totalHours,
-                $Remaining.Minutes,
-                $Remaining.Seconds
+            $totalHours = [int][Math]::Floor($Remaining.TotalHours)
+            return "{0:D2}:{1:D2}:{2:D2}" -f $totalHours, $Remaining.Minutes, $Remaining.Seconds
         }
 
-        $totalMinutes =
-            [int][Math]::Floor(
-                $Remaining.TotalMinutes
-            )
-
-        return "{0:D2}:{1:D2}" -f `
-            $totalMinutes,
-            $Remaining.Seconds
+        $totalMinutes = [int][Math]::Floor($Remaining.TotalMinutes)
+        return "{0:D2}:{1:D2}" -f $totalMinutes, $Remaining.Seconds
     }
 
 
@@ -649,34 +423,16 @@ public static class JWCountdownNative
             [hashtable]$OriginalSignatures
         )
 
-        $currentScreens =
-            [System.Windows.Forms.Screen]::AllScreens
+        $currentScreens = [System.Windows.Forms.Screen]::AllScreens
 
-        foreach(
-            $display in
-            $Displays
-        ){
-            $currentDisplay =
-                $currentScreens |
-                    Where-Object {
-                        $_.DeviceName -eq $display.DeviceName
-                    } |
-                    Select-Object -First 1
+        foreach($display in $Displays){
+            $currentDisplay = $currentScreens | Where-Object {$_.DeviceName -eq $display.DeviceName} | Select-Object -First 1
 
-            if($null -eq $currentDisplay){
-                return $false
-            }
+            if($null -eq $currentDisplay){ return $false }
 
-            $currentSignature =
-                Get-JWDisplaySignature `
-                    -Display $currentDisplay
+            $currentSignature = Get-JWDisplaySignature -Display $currentDisplay
 
-            if(
-                $currentSignature -ne
-                $OriginalSignatures[$display.DeviceName]
-            ){
-                return $false
-            }
+            if($currentSignature -ne $OriginalSignatures[$display.DeviceName]){ return $false }
         }
 
         return $true
@@ -692,47 +448,30 @@ public static class JWCountdownNative
             [System.Windows.Forms.Timer]$Timer
         )
 
-        if($script:CountdownClosing){
-            return
-        }
+        if($script:CountdownClosing){ return }
 
-        $script:CountdownClosing =
-            $true
+        $script:CountdownClosing = $true
 
         try {
-            if($null -ne $Timer){
-                $Timer.Stop()
-            }
+            if($null -ne $Timer){ $Timer.Stop() }
 
-            foreach(
-                $overlay in
-                $Overlays
-            ){
-                if(
-                    $null -ne $overlay -and
-                    -not $overlay.IsDisposed
-                ){
+            foreach($overlay in $Overlays){
+                if($null -ne $overlay -and -not $overlay.IsDisposed){
                     $overlay.Close()
                 }
             }
         }
         catch {
-            [System.Diagnostics.Debug]::WriteLine(
-                "[$($script:AppName)] Error while closing countdown overlays: $($_.Exception.Message)"
-            )
+            [System.Diagnostics.Debug]::WriteLine("[$($script:AppName)] Error while closing countdown overlays: $($_.Exception.Message)")
         }
     }
-
 
     # =================================================================
     # 9. MULTI-DISPLAY COUNTDOWN OVERLAY
     # =================================================================
     #
-    # All overlay creation, execution and cleanup lives inside one
-    # try/finally block so an unexpected error cannot leave resources
-    # behind.
+    # All overlay creation, execution and cleanup lives inside one try/finally block so an unexpected error cannot leave resources behind.
     #
-
     function Show-CountdownOverlays {
         param(
             [Parameter(Mandatory = $true)]
@@ -742,124 +481,47 @@ public static class JWCountdownNative
             [datetime]$TargetTime
         )
 
-        $overlayWindows =
-            @()
+        $overlayWindows = @()
+        $timerLabels = @()
+        $timer = $null
+        $originalSignatures = @{}
 
-        $timerLabels =
-            @()
-
-        $timer =
-            $null
-
-        $originalSignatures =
-            @{}
-
-        foreach(
-            $display in
-            $Displays
-        ){
-            $originalSignatures[$display.DeviceName] =
-                Get-JWDisplaySignature `
-                    -Display $display
+        foreach($display in $Displays){
+            $originalSignatures[$display.DeviceName] = Get-JWDisplaySignature -Display $display
         }
 
-
         try {
-            $timer =
-                New-Object System.Windows.Forms.Timer
+            $timer = New-Object System.Windows.Forms.Timer
+            $timer.Interval = $script:CountdownTimerInterval
 
-            $timer.Interval =
-                $script:CountdownTimerInterval
+            foreach($display in $Displays){
+                $overlay = New-Object System.Windows.Forms.Form
+                $overlay.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi
+                $overlay.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
+                $overlay.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+                $overlay.TopMost = $true
+                $overlay.ShowInTaskbar = $false
+                $overlay.KeyPreview = $true
+                $overlay.BackColor = $ColorBlack
+                $overlay.TransparencyKey = $ColorBlack
+                
+                $overlayHeight = [int]($display.Bounds.Height * $script:OverlayHeightRatio)
+                $overlay.Left = $display.Bounds.X
+                $overlay.Top = $display.Bounds.Y + $display.Bounds.Height - $overlayHeight
+                $overlay.Width = $display.Bounds.Width
+                $overlay.Height = $overlayHeight
 
-
-            foreach(
-                $display in
-                $Displays
-            ){
-                $overlay =
-                    New-Object System.Windows.Forms.Form
-
-                $overlay.AutoScaleMode =
-                    [System.Windows.Forms.AutoScaleMode]::Dpi
-
-                $overlay.FormBorderStyle =
-                    [System.Windows.Forms.FormBorderStyle]::None
-
-                $overlay.StartPosition =
-                    [System.Windows.Forms.FormStartPosition]::Manual
-
-                $overlay.TopMost =
-                    $true
-
-                $overlay.ShowInTaskbar =
-                    $false
-
-                $overlay.KeyPreview =
-                    $true
-
-                $overlay.BackColor =
-                    $ColorBlack
-
-                $overlay.TransparencyKey =
-                    $ColorBlack
-
-
-                # The overlay occupies the lower 25% of the display.
-                #
-
-                $overlayHeight =
-                    [int](
-                        $display.Bounds.Height *
-                        $script:OverlayHeightRatio
-                    )
-
-                $overlay.Left =
-                    $display.Bounds.X
-
-                $overlay.Top =
-                    $display.Bounds.Y +
-                    $display.Bounds.Height -
-                    $overlayHeight
-
-                $overlay.Width =
-                    $display.Bounds.Width
-
-                $overlay.Height =
-                    $overlayHeight
-
-
-                $timerLabel =
-                    New-Object System.Windows.Forms.Label
-
-                $timerLabel.Dock =
-                    [System.Windows.Forms.DockStyle]::Fill
-
-                $timerLabel.TextAlign =
-                    [System.Drawing.ContentAlignment]::MiddleCenter
-
-                $timerLabel.BackColor =
-                    $ColorBlack
-
-                $timerLabel.ForeColor =
-                    $ColorTimer
-
-                $timerLabel.Font =
-                    New-JWFont `
-                        -Size 45 `
-                        -Style ([System.Drawing.FontStyle]::Regular)
-
-                $timerLabel.Text =
-                    "00:00"
-
-
-                $overlay.Controls.Add(
-                    $timerLabel
-                )
-
+                $timerLabel = New-Object System.Windows.Forms.Label
+                $timerLabel.Dock = [System.Windows.Forms.DockStyle]::Fill
+                $timerLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+                $timerLabel.BackColor = $ColorBlack
+                $timerLabel.ForeColor = $ColorTimer
+                $timerLabel.Font = New-JWFont -Size 45 -Style ([System.Drawing.FontStyle]::Regular)
+                $timerLabel.Text = "00:00"
+                $overlay.Controls.Add($timerLabel)
 
                 # Closing any one overlay ends the full countdown session.
                 #
-
                 $overlay.Add_FormClosed({
                     Close-JWCountdownOverlays `
                         -Overlays $overlayWindows `
@@ -879,31 +541,21 @@ public static class JWCountdownNative
                 })
 
                 $overlay.Add_KeyDown({
-                    if(
-                        $_.KeyCode -eq
-                        [System.Windows.Forms.Keys]::Escape
-                    ){
+                    if($_.KeyCode -eq [System.Windows.Forms.Keys]::Escape){
                         Close-JWCountdownOverlays `
                             -Overlays $overlayWindows `
                             -Timer $timer
                     }
                 })
 
-
-                $overlayWindows +=
-                    $overlay
-
-                $timerLabels +=
-                    $timerLabel
+                $overlayWindows += $overlay
+                $timerLabels += $timerLabel
             }
-
 
             $timer.Add_Tick({
                 # Display changes are checked before updating the labels.
-                # This prevents orphaned windows after a monitor is removed
-                # or its desktop bounds change during the countdown.
+                # This prevents orphaned windows after a monitor is removed or its desktop bounds change during the countdown.
                 #
-
                 if(
                     -not (
                         Test-JWDisplayConfiguration `
@@ -911,9 +563,7 @@ public static class JWCountdownNative
                             -OriginalSignatures $originalSignatures
                     )
                 ){
-                    [System.Diagnostics.Debug]::WriteLine(
-                        "[$($script:AppName)] Display configuration changed during countdown."
-                    )
+                    [System.Diagnostics.Debug]::WriteLine("[$($script:AppName)] Display configuration changed during countdown.")
 
                     Close-JWCountdownOverlays `
                         -Overlays $overlayWindows `
@@ -922,10 +572,7 @@ public static class JWCountdownNative
                     return
                 }
 
-
-                $remaining =
-                    $TargetTime - [datetime]::Now
-
+                $remaining = $TargetTime - [datetime]::Now
 
                 if($remaining.TotalSeconds -le 0){
                     Close-JWCountdownOverlays `
@@ -935,855 +582,348 @@ public static class JWCountdownNative
                     return
                 }
 
+                $countdownText = Get-JWCountdownText -Remaining $remaining
 
-                $countdownText =
-                    Get-JWCountdownText `
-                        -Remaining $remaining
-
-
-                foreach(
-                    $label in
-                    $timerLabels
-                ){
-                    if(
-                        $null -ne $label -and
-                        -not $label.IsDisposed
-                    ){
-                        $label.Text =
-                            $countdownText
+                foreach($label in $timerLabels){
+                    if($null -ne $label -and -not $label.IsDisposed){
+                        $label.Text = $countdownText
                     }
                 }
             })
 
-
             # Show the correct value immediately.
             #
+            $initialRemaining = $TargetTime - [datetime]::Now
+            $initialText = Get-JWCountdownText -Remaining $initialRemaining
 
-            $initialRemaining =
-                $TargetTime - [datetime]::Now
-
-            $initialText =
-                Get-JWCountdownText `
-                    -Remaining $initialRemaining
-
-
-            foreach(
-                $label in
-                $timerLabels
-            ){
-                $label.Text =
-                    $initialText
+            foreach($label in $timerLabels){
+                $label.Text = $initialText
             }
-
 
             # Show all overlays except the first one. The first overlay
             # owns the modal message loop for the countdown session.
             #
-
-            for(
-                $overlayIndex = 1;
-                $overlayIndex -lt $overlayWindows.Count;
-                $overlayIndex++
-            ){
+            for($overlayIndex = 1; $overlayIndex -lt $overlayWindows.Count; $overlayIndex++){
                 $overlayWindows[$overlayIndex].Show()
             }
 
-
             $timer.Start()
 
-
-            if(
-                $overlayWindows.Count -gt 0
-            ){
+            if($overlayWindows.Count -gt 0){
                 $overlayWindows[0].ShowDialog() | Out-Null
             }
+        } finally {
+            if($null -ne $timer){ $timer.Stop() }
 
-        }
-        finally {
-            if($null -ne $timer){
-                $timer.Stop()
-            }
-
-
-            foreach(
-                $overlay in
-                $overlayWindows
-            ){
-                if(
-                    $null -ne $overlay -and
-                    -not $overlay.IsDisposed
-                ){
+            foreach($overlay in $overlayWindows){
+                if($null -ne $overlay -and -not $overlay.IsDisposed){
                     try {
                         $overlay.Close()
-                    }
-                    catch {
+                    } catch {
                         # The overlay may already have been closed.
                     }
                 }
             }
 
-
-            foreach(
-                $overlay in
-                $overlayWindows
-            ){
-                if(
-                    $null -ne $overlay -and
-                    -not $overlay.IsDisposed
-                ){
+            foreach($overlay in $overlayWindows ){
+                if($null -ne $overlay -and -not $overlay.IsDisposed){
                     try {
                         $overlay.Dispose()
-                    }
-                    catch {
+                    } catch {
                     }
                 }
             }
 
-
-            foreach(
-                $label in
-                $timerLabels
-            ){
-                if(
-                    $null -ne $label -and
-                    -not $label.IsDisposed
-                ){
+            foreach($label in $timerLabels){
+                if($null -ne $label -and -not $label.IsDisposed){
                     try {
                         $label.Dispose()
-                    }
-                    catch {
+                    } catch {
                     }
                 }
             }
-
 
             if($null -ne $timer){
                 try {
                     $timer.Dispose()
-                }
-                catch {
+                } catch {
                 }
             }
 
-
-            $script:CountdownClosing =
-                $false
+            $script:CountdownClosing = $false
         }
     }
-
 
     # =================================================================
     # 10. MAIN WINDOW
     # =================================================================
-
-    $setupForm =
-        New-Object System.Windows.Forms.Form
-
-    $setupForm.AutoScaleMode =
-        [System.Windows.Forms.AutoScaleMode]::Dpi
-
-    $setupForm.Text =
-        $script:AppName
-
-    $setupForm.Size =
-        New-Object System.Drawing.Size(
-            620,
-            660
-        )
-
-    $setupForm.StartPosition =
-        [System.Windows.Forms.FormStartPosition]::CenterScreen
-
-    $setupForm.FormBorderStyle =
-        [System.Windows.Forms.FormBorderStyle]::FixedSingle
-
-    $setupForm.MaximizeBox =
-        $false
-
-    $setupForm.MinimizeBox =
-        $true
-
-    $setupForm.BackColor =
-        $ColorBackground
-
-    $setupForm.Font =
-        New-JWFont -Size 10
-
+    $setupForm = New-Object System.Windows.Forms.Form
+    $setupForm.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi
+    $setupForm.Text = $script:AppName
+    $setupForm.Size = New-Object System.Drawing.Size(620, 660)
+    $setupForm.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
+    $setupForm.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedSingle
+    $setupForm.MaximizeBox = $false
+    $setupForm.MinimizeBox = $true
+    $setupForm.BackColor = $ColorBackground
+    $setupForm.Font = New-JWFont -Size 10
 
     # =================================================================
     # 11. HEADER
     # =================================================================
+    $titleLabel = New-Object System.Windows.Forms.Label
+    $titleLabel.Text = $script:AppName
+    $titleLabel.Location = New-Object System.Drawing.Point(30, 25)
+    $titleLabel.AutoSize = $true
+    $titleLabel.Font = New-JWFont -Size 23 -Style ([System.Drawing.FontStyle]::Bold)
+    $titleLabel.ForeColor = $ColorTextPrimary
 
-    $titleLabel =
-        New-Object System.Windows.Forms.Label
-
-    $titleLabel.Text =
-        $script:AppName
-
-    $titleLabel.Location =
-        New-Object System.Drawing.Point(
-            30,
-            25
-        )
-
-    $titleLabel.AutoSize =
-        $true
-
-    $titleLabel.Font =
-        New-JWFont `
-            -Size 23 `
-            -Style ([System.Drawing.FontStyle]::Bold)
-
-    $titleLabel.ForeColor =
-        $ColorTextPrimary
-
-
-    $subtitleLabel =
-        New-Object System.Windows.Forms.Label
-
-    $subtitleLabel.Text =
-        "Simple countdown for meetings start"
-
-    $subtitleLabel.Location =
-        New-Object System.Drawing.Point(
-            32,
-            68
-        )
-
-    $subtitleLabel.AutoSize =
-        $true
-
-    $subtitleLabel.Font =
-        New-JWFont -Size 9
-
-    $subtitleLabel.ForeColor =
-        $ColorTextSecondary
-
+    $subtitleLabel = New-Object System.Windows.Forms.Label
+    $subtitleLabel.Text = "Simple countdown for meetings start"
+    $subtitleLabel.Location = New-Object System.Drawing.Point(32, 68)
+    $subtitleLabel.AutoSize = $true
+    $subtitleLabel.Font = New-JWFont -Size 9
+    $subtitleLabel.ForeColor = $ColorTextSecondary
 
     # =================================================================
     # 12. TIME SECTION
     # =================================================================
+    $timePanel = New-Object System.Windows.Forms.Panel
+    $timePanel.Location = New-Object System.Drawing.Point(30, 110)
+    $timePanel.Size = New-Object System.Drawing.Size(545, 125)
+    $timePanel.BackColor = $ColorSurface
+    $timePanel.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
 
-    $timePanel =
-        New-Object System.Windows.Forms.Panel
+    $timeTitle = New-Object System.Windows.Forms.Label
+    $timeTitle.Text = "Meeting start time"
+    $timeTitle.Location = New-Object System.Drawing.Point(18, 15)
+    $timeTitle.AutoSize = $true
+    $timeTitle.Font = New-JWFont -Size 11 -Style ([System.Drawing.FontStyle]::Bold)
+    $timeTitle.ForeColor = $ColorTextPrimary
 
-    $timePanel.Location =
-        New-Object System.Drawing.Point(
-            30,
-            110
-        )
+    $timeDescription = New-Object System.Windows.Forms.Label
+    $timeDescription.Text = "Select the time when the meeting is scheduled to begin."
+    $timeDescription.Location = New-Object System.Drawing.Point(18, 42)
+    $timeDescription.AutoSize = $true
+    $timeDescription.Font = New-JWFont -Size 8.5
+    $timeDescription.ForeColor = $ColorTextSecondary
 
-    $timePanel.Size =
-        New-Object System.Drawing.Size(
-            545,
-            125
-        )
-
-    $timePanel.BackColor =
-        $ColorSurface
-
-    $timePanel.BorderStyle =
-        [System.Windows.Forms.BorderStyle]::FixedSingle
-
-
-    $timeTitle =
-        New-Object System.Windows.Forms.Label
-
-    $timeTitle.Text =
-        "Meeting start time"
-
-    $timeTitle.Location =
-        New-Object System.Drawing.Point(
-            18,
-            15
-        )
-
-    $timeTitle.AutoSize =
-        $true
-
-    $timeTitle.Font =
-        New-JWFont `
-            -Size 11 `
-            -Style ([System.Drawing.FontStyle]::Bold)
-
-    $timeTitle.ForeColor =
-        $ColorTextPrimary
-
-
-    $timeDescription =
-        New-Object System.Windows.Forms.Label
-
-    $timeDescription.Text =
-        "Select the time when the meeting is scheduled to begin."
-
-    $timeDescription.Location =
-        New-Object System.Drawing.Point(
-            18,
-            42
-        )
-
-    $timeDescription.AutoSize =
-        $true
-
-    $timeDescription.Font =
-        New-JWFont -Size 8.5
-
-    $timeDescription.ForeColor =
-        $ColorTextSecondary
-
-
-    # Native time selector.
-
-    $timePicker =
-        New-Object System.Windows.Forms.DateTimePicker
-
-    $timePicker.Location =
-        New-Object System.Drawing.Point(
-            18,
-            72
-        )
-
-    $timePicker.Size =
-        New-Object System.Drawing.Size(
-            160,
-            35
-        )
-
-    $timePicker.Format =
-        [System.Windows.Forms.DateTimePickerFormat]::Custom
-
-    $timePicker.CustomFormat =
-        "HH:mm"
-
-    $timePicker.ShowUpDown =
-        $true
-
-    $timePicker.Font =
-        New-JWFont -Size 13
-
-    $timePicker.Value =
-        [datetime]::Now.AddMinutes(30)
-
+    $timePicker = New-Object System.Windows.Forms.DateTimePicker
+    $timePicker.Location = New-Object System.Drawing.Point(18, 72)
+    $timePicker.Size = New-Object System.Drawing.Size(160, 35)
+    $timePicker.Format = [System.Windows.Forms.DateTimePickerFormat]::Custom
+    $timePicker.CustomFormat = "HH:mm"
+    $timePicker.ShowUpDown = $true
+    $timePicker.Font = New-JWFont -Size 13
+    $timePicker.Value = [datetime]::Now.AddMinutes(30)
 
     $timePanel.Controls.Add($timeTitle)
     $timePanel.Controls.Add($timeDescription)
     $timePanel.Controls.Add($timePicker)
 
-
     # =================================================================
     # 13. DISPLAY SECTION
     # =================================================================
+    $displayPanel = New-Object System.Windows.Forms.Panel
+    $displayPanel.Location = New-Object System.Drawing.Point(30, 250)
+    $displayPanel.Size = New-Object System.Drawing.Size(545, 265)
+    $displayPanel.BackColor = $ColorSurface
+    $displayPanel.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
 
-    $displayPanel =
-        New-Object System.Windows.Forms.Panel
+    $displayTitle = New-Object System.Windows.Forms.Label
+    $displayTitle.Text = "Destination displays"
+    $displayTitle.Location = New-Object System.Drawing.Point(18, 15)
+    $displayTitle.AutoSize = $true
+    $displayTitle.Font = New-JWFont -Size 11 -Style ([System.Drawing.FontStyle]::Bold)
+    $displayTitle.ForeColor = $ColorTextPrimary
 
-    $displayPanel.Location =
-        New-Object System.Drawing.Point(
-            30,
-            250
-        )
-
-    $displayPanel.Size =
-        New-Object System.Drawing.Size(
-            545,
-            265
-        )
-
-    $displayPanel.BackColor =
-        $ColorSurface
-
-    $displayPanel.BorderStyle =
-        [System.Windows.Forms.BorderStyle]::FixedSingle
-
-
-    $displayTitle =
-        New-Object System.Windows.Forms.Label
-
-    $displayTitle.Text =
-        "Destination displays"
-
-    $displayTitle.Location =
-        New-Object System.Drawing.Point(
-            18,
-            15
-        )
-
-    $displayTitle.AutoSize =
-        $true
-
-    $displayTitle.Font =
-        New-JWFont `
-            -Size 11 `
-            -Style ([System.Drawing.FontStyle]::Bold)
-
-    $displayTitle.ForeColor =
-        $ColorTextPrimary
-
-
-    $displayDescription =
-        New-Object System.Windows.Forms.Label
-
-    $displayDescription.Text =
-        "Select one or more displays where the countdown should appear."
-
-    $displayDescription.Location =
-        New-Object System.Drawing.Point(
-            18,
-            42
-        )
-
-    $displayDescription.AutoSize =
-        $true
-
-    $displayDescription.Font =
-        New-JWFont -Size 8.5
-
-    $displayDescription.ForeColor =
-        $ColorTextSecondary
-
+    $displayDescription = New-Object System.Windows.Forms.Label
+    $displayDescription.Text = "Select one or more displays where the countdown should appear."
+    $displayDescription.Location = New-Object System.Drawing.Point(18, 42)
+    $displayDescription.AutoSize = $true
+    $displayDescription.Font = New-JWFont -Size 8.5
+    $displayDescription.ForeColor = $ColorTextSecondary
 
     # =================================================================
     # 14. DISPLAY CARDS
     # =================================================================
+    $screenFlow = New-Object System.Windows.Forms.FlowLayoutPanel
+    $screenFlow.Location = New-Object System.Drawing.Point(18, 72)
+    $screenFlow.Size = New-Object System.Drawing.Size(505, 112)
+    $screenFlow.BackColor = $ColorSurface
+    $screenFlow.AutoScroll = $true
+    $screenFlow.WrapContents = $false
+    $screenFlow.FlowDirection = [System.Windows.Forms.FlowDirection]::LeftToRight
 
-    $screenFlow =
-        New-Object System.Windows.Forms.FlowLayoutPanel
-
-    $screenFlow.Location =
-        New-Object System.Drawing.Point(
-            18,
-            72
-        )
-
-    $screenFlow.Size =
-        New-Object System.Drawing.Size(
-            505,
-            112
-        )
-
-    $screenFlow.BackColor =
-        $ColorSurface
-
-    $screenFlow.AutoScroll =
-        $true
-
-    $screenFlow.WrapContents =
-        $false
-
-    $screenFlow.FlowDirection =
-        [System.Windows.Forms.FlowDirection]::LeftToRight
-
-
-    $script:ScreenButtons =
-        @()
-
+    $script:ScreenButtons = @()
 
     # =================================================================
     # 15. SCREEN SELECTION VISUAL UPDATE
     # =================================================================
-
     function Update-ScreenSelection {
-        for(
-            $buttonIndex = 0;
-            $buttonIndex -lt $script:ScreenButtons.Count;
-            $buttonIndex++
-        ){
-            $screenButton =
-                $script:ScreenButtons[$buttonIndex]
-
-            $isSelected =
-                $script:SelectedScreenIndexes.Contains(
-                    $buttonIndex
-                )
+        for($buttonIndex = 0; $buttonIndex -lt $script:ScreenButtons.Count; $buttonIndex++){
+            $screenButton = $script:ScreenButtons[$buttonIndex]
+            $isSelected = $script:SelectedScreenIndexes.Contains($buttonIndex)
 
             if($isSelected){
-                $screenButton.BackColor =
-                    $ColorAccentLight
-
-                $screenButton.FlatAppearance.BorderColor =
-                    $ColorAccent
-
-                $screenButton.FlatAppearance.BorderSize =
-                    2
+                $screenButton.BackColor = $ColorAccentLight
+                $screenButton.FlatAppearance.BorderColor = $ColorAccent
+                $screenButton.FlatAppearance.BorderSize = 2
             } else {
-                $screenButton.BackColor =
-                    $ColorSurface
-
-                $screenButton.FlatAppearance.BorderColor =
-                    $ColorBorder
-
-                $screenButton.FlatAppearance.BorderSize =
-                    1
+                $screenButton.BackColor = $ColorSurface
+                $screenButton.FlatAppearance.BorderColor = $ColorBorder
+                $screenButton.FlatAppearance.BorderSize = 1
             }
         }
 
-
-        $selectedCount =
-            $script:SelectedScreenIndexes.Count
-
-        $totalCount =
-            $screens.Count
-
+        $selectedCount = $script:SelectedScreenIndexes.Count
+        $totalCount = $screens.Count
 
         if($selectedCount -eq 0){
-            $selectionSummaryLabel.Text =
-                "No display selected."
+            $selectionSummaryLabel.Text = "No display selected."
         } elseif($selectedCount -eq 1){
-            $selectionSummaryLabel.Text =
-                "1 display selected."
+            $selectionSummaryLabel.Text = "1 display selected."
         } elseif($selectedCount -eq $totalCount){
-            $selectionSummaryLabel.Text =
-                "All $totalCount displays selected."
+            $selectionSummaryLabel.Text = "All $totalCount displays selected."
         } else {
-            $selectionSummaryLabel.Text =
-                "$selectedCount displays selected."
+            $selectionSummaryLabel.Text = "$selectedCount displays selected."
         }
     }
-
 
     # =================================================================
     # 16. CREATE DISPLAY CARDS
     # =================================================================
-
-    for(
-        $i = 0;
-        $i -lt $screens.Count;
-        $i++
-    ){
-        $screen =
-            $screens[$i]
-
-        $screenNumber =
-            $i + 1
-
+    for($i = 0; $i -lt $screens.Count; $i++){
+        $screen = $screens[$i]
+        $screenNumber = $i + 1
+        
         if($screen.Primary){
-            $screenType =
-                "Primary display"
+            $screenType = "Primary display"
         } else {
-            $screenType =
-                "Display"
+            $screenType = "Display"
         }
 
-        $resolution =
-            "$($screen.Bounds.Width) x $($screen.Bounds.Height)"
-
-
-        $screenButton =
-            New-Object System.Windows.Forms.Button
-
-        $screenButton.Size =
-            New-Object System.Drawing.Size(
-                145,
-                100
-            )
-
-        $screenButton.Margin =
-            New-Object System.Windows.Forms.Padding(
-                0,
-                0,
-                10,
-                0
-            )
-
-        $screenButton.Text =
-            "$screenNumber`r`n$screenType`r`n$resolution"
-
-        $screenButton.TextAlign =
-            [System.Drawing.ContentAlignment]::MiddleCenter
-
-        $screenButton.Font =
-            New-JWFont `
-                -Size 9 `
-                -Style ([System.Drawing.FontStyle]::Bold)
-
-        $screenButton.FlatStyle =
-            [System.Windows.Forms.FlatStyle]::Flat
-
-        $screenButton.FlatAppearance.BorderColor =
-            $ColorBorder
-
-        $screenButton.FlatAppearance.BorderSize =
-            1
-
-        $screenButton.FlatAppearance.MouseOverBackColor =
-            $ColorAccentLight
-
-        $screenButton.BackColor =
-            $ColorSurface
-
-        $screenButton.ForeColor =
-            $ColorTextPrimary
-
-        $screenButton.Cursor =
-            [System.Windows.Forms.Cursors]::Hand
-
-        $screenButton.Tag =
-            $i
-
+        $resolution = "$($screen.Bounds.Width) x $($screen.Bounds.Height)"
+        $screenButton = New-Object System.Windows.Forms.Button
+        $screenButton.Size = New-Object System.Drawing.Size(145, 100)
+        $screenButton.Margin = New-Object System.Windows.Forms.Padding(0, 0, 10, 0)
+        $screenButton.Text = "$screenNumber`r`n$screenType`r`n$resolution"
+        $screenButton.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+        $screenButton.Font = New-JWFont -Size 9 -Style ([System.Drawing.FontStyle]::Bold)
+        $screenButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+        $screenButton.FlatAppearance.BorderColor = $ColorBorder
+        $screenButton.FlatAppearance.BorderSize = 1
+        $screenButton.FlatAppearance.MouseOverBackColor = $ColorAccentLight
+        $screenButton.BackColor = $ColorSurface
+        $screenButton.ForeColor = $ColorTextPrimary
+        $screenButton.Cursor = [System.Windows.Forms.Cursors]::Hand
+        $screenButton.Tag = $i
 
         $screenButton.Add_Click({
-            $screenIndex =
-                [int]$this.Tag
-
-            if(
-                $script:SelectedScreenIndexes.Contains(
-                    $screenIndex
-                )
-            ){
-                $script:SelectedScreenIndexes.Remove(
-                    $screenIndex
-                ) | Out-Null
+            $screenIndex = [int]$this.Tag
+            
+            if($script:SelectedScreenIndexes.Contains($screenIndex)){
+                $script:SelectedScreenIndexes.Remove($screenIndex) | Out-Null
             } else {
-                $script:SelectedScreenIndexes.Add(
-                    $screenIndex
-                )
+                $script:SelectedScreenIndexes.Add($screenIndex)
             }
 
             Update-ScreenSelection
         })
 
-
-        $script:ScreenButtons +=
-            $screenButton
-
-        $screenFlow.Controls.Add(
-            $screenButton
-        )
+        $script:ScreenButtons += $screenButton
+        $screenFlow.Controls.Add($screenButton)
     }
-
 
     # =================================================================
     # 17. SELECTION SUMMARY
     # =================================================================
-
-    $selectionSummaryLabel =
-        New-Object System.Windows.Forms.Label
-
-    $selectionSummaryLabel.Location =
-        New-Object System.Drawing.Point(
-            18,
-            188
-        )
-
-    $selectionSummaryLabel.Size =
-        New-Object System.Drawing.Size(
-            505,
-            20
-        )
-
-    $selectionSummaryLabel.AutoSize =
-        $false
-
-    $selectionSummaryLabel.Font =
-        New-JWFont `
-            -Size 8.5 `
-            -Style ([System.Drawing.FontStyle]::Bold)
-
-    $selectionSummaryLabel.ForeColor =
-        $ColorTextSecondary
-
-    $selectionSummaryLabel.TextAlign =
-        [System.Drawing.ContentAlignment]::MiddleLeft
-
+    $selectionSummaryLabel = New-Object System.Windows.Forms.Label
+    $selectionSummaryLabel.Location = New-Object System.Drawing.Point(18, 188)
+    $selectionSummaryLabel.Size = New-Object System.Drawing.Size(505, 20)
+    $selectionSummaryLabel.AutoSize = $false
+    $selectionSummaryLabel.Font = New-JWFont -Size 8.5 -Style ([System.Drawing.FontStyle]::Bold)
+    $selectionSummaryLabel.ForeColor = $ColorTextSecondary
+    $selectionSummaryLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
 
     # =================================================================
     # 18. SELECT ALL BUTTON
     # =================================================================
-
-    $selectAllButton =
-        New-Object System.Windows.Forms.Button
-
-    $selectAllButton.Text =
-        "SELECT ALL"
-
-    $selectAllButton.Location =
-        New-Object System.Drawing.Point(
-            18,
-            215
-        )
-
-    $selectAllButton.Size =
-        New-Object System.Drawing.Size(
-            140,
-            38
-        )
-
-    $selectAllButton.FlatStyle =
-        [System.Windows.Forms.FlatStyle]::Flat
-
-    $selectAllButton.FlatAppearance.BorderColor =
-        $ColorBorder
-
-    $selectAllButton.FlatAppearance.BorderSize =
-        1
-
-    $selectAllButton.BackColor =
-        $ColorSurface
-
-    $selectAllButton.ForeColor =
-        $ColorTextPrimary
-
-    $selectAllButton.Font =
-        New-JWFont `
-            -Size 8.5 `
-            -Style ([System.Drawing.FontStyle]::Bold)
-
-    $selectAllButton.Cursor =
-        [System.Windows.Forms.Cursors]::Hand
-
+    $selectAllButton = New-Object System.Windows.Forms.Button
+    $selectAllButton.Text = "SELECT ALL"
+    $selectAllButton.Location = New-Object System.Drawing.Point(18, 215)
+    $selectAllButton.Size = New-Object System.Drawing.Size(140, 38)
+    $selectAllButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $selectAllButton.FlatAppearance.BorderColor = $ColorBorder
+    $selectAllButton.FlatAppearance.BorderSize =1
+    $selectAllButton.BackColor = $ColorSurface
+    $selectAllButton.ForeColor = $ColorTextPrimary
+    $selectAllButton.Font = New-JWFont -Size 8.5 -Style ([System.Drawing.FontStyle]::Bold)
+    $selectAllButton.Cursor = [System.Windows.Forms.Cursors]::Hand
 
     $selectAllButton.Add_Click({
         $script:SelectedScreenIndexes.Clear()
 
-        for(
-            $screenIndex = 0;
-            $screenIndex -lt $screens.Count;
-            $screenIndex++
-        ){
-            $script:SelectedScreenIndexes.Add(
-                $screenIndex
-            )
+        for($screenIndex = 0; $screenIndex -lt $screens.Count; $screenIndex++){
+            $script:SelectedScreenIndexes.Add($screenIndex)
         }
 
         Update-ScreenSelection
     })
 
-
     # =================================================================
     # 19. CLEAR SELECTION BUTTON
     # =================================================================
-
-    $clearSelectionButton =
-        New-Object System.Windows.Forms.Button
-
-    $clearSelectionButton.Text =
-        "CLEAR SELECTION"
-
-    $clearSelectionButton.Location =
-        New-Object System.Drawing.Point(
-            168,
-            215
-        )
-
-    $clearSelectionButton.Size =
-        New-Object System.Drawing.Size(
-            155,
-            38
-        )
-
-    $clearSelectionButton.FlatStyle =
-        [System.Windows.Forms.FlatStyle]::Flat
-
-    $clearSelectionButton.FlatAppearance.BorderColor =
-        $ColorBorder
-
-    $clearSelectionButton.FlatAppearance.BorderSize =
-        1
-
-    $clearSelectionButton.BackColor =
-        $ColorSurface
-
-    $clearSelectionButton.ForeColor =
-        $ColorTextPrimary
-
-    $clearSelectionButton.Font =
-        New-JWFont `
-            -Size 8.5 `
-            -Style ([System.Drawing.FontStyle]::Bold)
-
-    $clearSelectionButton.Cursor =
-        [System.Windows.Forms.Cursors]::Hand
-
+    $clearSelectionButton = New-Object System.Windows.Forms.Button
+    $clearSelectionButton.Text = "CLEAR SELECTION"
+    $clearSelectionButton.Location = New-Object System.Drawing.Point(168, 215)
+    $clearSelectionButton.Size = New-Object System.Drawing.Size(155, 38)
+    $clearSelectionButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $clearSelectionButton.FlatAppearance.BorderColor = $ColorBorder
+    $clearSelectionButton.FlatAppearance.BorderSize = 1
+    $clearSelectionButton.BackColor = $ColorSurface
+    $clearSelectionButton.ForeColor = $ColorTextPrimary
+    $clearSelectionButton.Font = New-JWFont -Size 8.5 -Style ([System.Drawing.FontStyle]::Bold)
+    $clearSelectionButton.Cursor = [System.Windows.Forms.Cursors]::Hand
 
     $clearSelectionButton.Add_Click({
         $script:SelectedScreenIndexes.Clear()
         Update-ScreenSelection
     })
 
-
     # =================================================================
     # 20. IDENTIFY DISPLAYS BUTTON
     # =================================================================
-
-    $identifyButton =
-        New-Object System.Windows.Forms.Button
-
-    $identifyButton.Text =
-        "IDENTIFY DISPLAYS"
-
-    $identifyButton.Location =
-        New-Object System.Drawing.Point(
-            333,
-            215
-        )
-
-    $identifyButton.Size =
-        New-Object System.Drawing.Size(
-            190,
-            38
-        )
-
-    $identifyButton.FlatStyle =
-        [System.Windows.Forms.FlatStyle]::Flat
-
-    $identifyButton.FlatAppearance.BorderColor =
-        $ColorBorder
-
-    $identifyButton.FlatAppearance.BorderSize =
-        1
-
-    $identifyButton.BackColor =
-        $ColorSurface
-
-    $identifyButton.ForeColor =
-        $ColorTextPrimary
-
-    $identifyButton.Font =
-        New-JWFont `
-            -Size 8.5 `
-            -Style ([System.Drawing.FontStyle]::Bold)
-
-    $identifyButton.Cursor =
-        [System.Windows.Forms.Cursors]::Hand
-
+    $identifyButton = New-Object System.Windows.Forms.Button
+    $identifyButton.Text = "IDENTIFY DISPLAYS"
+    $identifyButton.Location = New-Object System.Drawing.Point(333, 215)
+    $identifyButton.Size = New-Object System.Drawing.Size(190, 38)
+    $identifyButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $identifyButton.FlatAppearance.BorderColor = $ColorBorder
+    $identifyButton.FlatAppearance.BorderSize = 1
+    $identifyButton.BackColor = $ColorSurface
+    $identifyButton.ForeColor = $ColorTextPrimary
+    $identifyButton.Font = New-JWFont -Size 8.5 -Style ([System.Drawing.FontStyle]::Bold)
+    $identifyButton.Cursor = [System.Windows.Forms.Cursors]::Hand
 
     $identifyButton.Add_Click({
-        $identifyButton.Enabled =
-            $false
-
-        $startButton.Enabled =
-            $false
-
-        $selectAllButton.Enabled =
-            $false
-
-        $clearSelectionButton.Enabled =
-            $false
-
+        $identifyButton.Enabled = $false
+        $startButton.Enabled = $false
+        $selectAllButton.Enabled = $false
+        $clearSelectionButton.Enabled = $false
         try {
-            Show-DisplayIdentification `
-                -Displays $screens
-        }
-        finally {
-            $identifyButton.Enabled =
-                $true
-
-            $startButton.Enabled =
-                $true
-
-            $selectAllButton.Enabled =
-                $true
-
-            $clearSelectionButton.Enabled =
-                $true
+            Show-DisplayIdentification -Displays $screens
+        } finally {
+            $identifyButton.Enabled = $true
+            $startButton.Enabled = $true
+            $selectAllButton.Enabled = $true
+            $clearSelectionButton.Enabled = $true
         }
     })
-
 
     # =================================================================
     # 21. ADD DISPLAY CONTROLS
     # =================================================================
-
     $displayPanel.Controls.Add($displayTitle)
     $displayPanel.Controls.Add($displayDescription)
     $displayPanel.Controls.Add($screenFlow)
@@ -1792,62 +932,27 @@ public static class JWCountdownNative
     $displayPanel.Controls.Add($clearSelectionButton)
     $displayPanel.Controls.Add($identifyButton)
 
-
     # =================================================================
     # 22. START BUTTON
     # =================================================================
-
-    $startButton =
-        New-Object System.Windows.Forms.Button
-
-    $startButton.Text =
-        "START TIMER"
-
-    $startButton.Location =
-        New-Object System.Drawing.Point(
-            30,
-            535
-        )
-
-    $startButton.Size =
-        New-Object System.Drawing.Size(
-            545,
-            50
-        )
-
-    $startButton.FlatStyle =
-        [System.Windows.Forms.FlatStyle]::Flat
-
-    $startButton.FlatAppearance.BorderSize =
-        0
-
-    $startButton.BackColor =
-        $ColorAccent
-
-    $startButton.ForeColor =
-        $ColorWhite
-
-    $startButton.Font =
-        New-JWFont `
-            -Size 11 `
-            -Style ([System.Drawing.FontStyle]::Bold)
-
-    $startButton.Cursor =
-        [System.Windows.Forms.Cursors]::Hand
-
+    $startButton = New-Object System.Windows.Forms.Button
+    $startButton.Text = "START TIMER"
+    $startButton.Location = New-Object System.Drawing.Point(30, 535)
+    $startButton.Size = New-Object System.Drawing.Size(545, 50)
+    $startButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $startButton.FlatAppearance.BorderSize = 0
+    $startButton.BackColor = $ColorAccent
+    $startButton.ForeColor = $ColorWhite
+    $startButton.Font = New-JWFont -Size 11 -Style ([System.Drawing.FontStyle]::Bold)
+    $startButton.Cursor = [System.Windows.Forms.Cursors]::Hand
 
     $startButton.Add_Click({
         try {
-            $now =
-                [datetime]::Now
-
-            $selectedTime =
-                $timePicker.Value
-
+            $now = [datetime]::Now
+            $selectedTime = $timePicker.Value
 
             try {
-                $targetTime =
-                    [datetime]::new(
+                $targetTime = [datetime]::new(
                         $now.Year,
                         $now.Month,
                         $now.Day,
@@ -1855,8 +960,7 @@ public static class JWCountdownNative
                         $selectedTime.Minute,
                         0
                     )
-            }
-            catch {
+            } catch {
                 $targetTime =
                     Get-Date `
                         -Year $now.Year `
@@ -1867,16 +971,9 @@ public static class JWCountdownNative
                         -Second 0
             }
 
+            if($targetTime -le $now){ $targetTime = $targetTime.AddDays(1) }
 
-            if($targetTime -le $now){
-                $targetTime =
-                    $targetTime.AddDays(1)
-            }
-
-
-            if(
-                $script:SelectedScreenIndexes.Count -eq 0
-            ){
+            if($script:SelectedScreenIndexes.Count -eq 0){
                 Show-JWMessage `
                     -Message "Please select at least one destination display." `
                     -Icon ([System.Windows.Forms.MessageBoxIcon]::Warning) |
@@ -1885,24 +982,13 @@ public static class JWCountdownNative
                 return
             }
 
+            $selectedScreens = @()
 
-            $selectedScreens =
-                @()
-
-
-            foreach(
-                $screenIndex in
-                $script:SelectedScreenIndexes
-            ){
-                if(
-                    $screenIndex -ge 0 -and
-                    $screenIndex -lt $screens.Count
-                ){
-                    $selectedScreens +=
-                        $screens[$screenIndex]
+            foreach($screenIndex in $script:SelectedScreenIndexes){
+                if($screenIndex -ge 0 -and $screenIndex -lt $screens.Count){
+                    $selectedScreens += $screens[$screenIndex]
                 }
             }
-
 
             if($selectedScreens.Count -eq 0){
                 Show-JWMessage `
@@ -1913,69 +999,38 @@ public static class JWCountdownNative
                 return
             }
 
-
-            # The setup window is never shown again after START TIMER.
-            #
-
             $setupForm.Hide()
 
             try {
                 Show-CountdownOverlays `
                     -Displays $selectedScreens `
                     -TargetTime $targetTime
-            }
-            finally {
-                if(
-                    $null -ne $setupForm -and
-                    -not $setupForm.IsDisposed
-                ){
+            } finally {
+                if($null -ne $setupForm -and -not $setupForm.IsDisposed){
                     $setupForm.Close()
                 }
             }
-
-        }
-        catch {
+        } catch {
             Show-JWMessage `
-                -Message (
-                    "An unexpected error occurred.`r`n`r`n" +
-                    $_.Exception.Message
-                ) `
+                -Message ("An unexpected error occurred.`r`n`r`n" + $_.Exception.Message) `
                 -Icon ([System.Windows.Forms.MessageBoxIcon]::Error) |
                 Out-Null
         }
     })
 
-
     # =================================================================
     # 23. FOOTER
     # =================================================================
-
-    $footerLabel =
-        New-Object System.Windows.Forms.Label
-
-    $footerLabel.Text =
-        "v$($script:Version)"
-
-    $footerLabel.Location =
-        New-Object System.Drawing.Point(
-            30,
-            595
-        )
-
-    $footerLabel.AutoSize =
-        $true
-
-    $footerLabel.Font =
-        New-JWFont -Size 8
-
-    $footerLabel.ForeColor =
-        $ColorTextSecondary
-
+    $footerLabel = New-Object System.Windows.Forms.Label
+    $footerLabel.Text = "v$($script:Version)"
+    $footerLabel.Location = New-Object System.Drawing.Point(30, 595)
+    $footerLabel.AutoSize = $true
+    $footerLabel.Font = New-JWFont -Size 8
+    $footerLabel.ForeColor = $ColorTextSecondary
 
     # =================================================================
     # 24. ADD MAIN CONTROLS
     # =================================================================
-
     $setupForm.Controls.Add($titleLabel)
     $setupForm.Controls.Add($subtitleLabel)
     $setupForm.Controls.Add($timePanel)
@@ -1983,63 +1038,41 @@ public static class JWCountdownNative
     $setupForm.Controls.Add($startButton)
     $setupForm.Controls.Add($footerLabel)
 
-    $setupForm.AcceptButton =
-        $startButton
-
+    $setupForm.AcceptButton = $startButton
 
     # =================================================================
     # 25. INITIAL UI STATE
     # =================================================================
-
     Update-ScreenSelection
-
 
     # =================================================================
     # 26. RUN APPLICATION
     # =================================================================
-
     try {
         $setupForm.ShowDialog() | Out-Null
-    }
-    finally {
-        if(
-            $null -ne $setupForm -and
-            -not $setupForm.IsDisposed
-        ){
+    } finally {
+        if($null -ne $setupForm -and -not $setupForm.IsDisposed){
             $setupForm.Dispose()
         }
     }
-
-}
-finally {
+} finally {
     # =================================================================
     # 27. RELEASE SINGLE INSTANCE MUTEX
     # =================================================================
-
     if($script:TimerMutexOwned){
         try {
             $script:TimerMutex.ReleaseMutex()
-        }
-        catch {
-            [System.Diagnostics.Debug]::WriteLine(
-                "[$($script:AppName)] Unable to release the single-instance mutex."
-            )
+        } catch {
+            [System.Diagnostics.Debug]::WriteLine("[$($script:AppName)] Unable to release the single-instance mutex.")
         }
     }
-
 
     # =================================================================
     # 28. DISPOSE MUTEX
     # =================================================================
-
     try {
-        if($null -ne $script:TimerMutex){
-            $script:TimerMutex.Dispose()
-        }
-    }
-    catch {
-        [System.Diagnostics.Debug]::WriteLine(
-            "[$($script:AppName)] Unable to dispose the single-instance mutex."
-        )
+        if($null -ne $script:TimerMutex){ $script:TimerMutex.Dispose() }
+    } catch {
+        [System.Diagnostics.Debug]::WriteLine("[$($script:AppName)] Unable to dispose the single-instance mutex.")
     }
 }
