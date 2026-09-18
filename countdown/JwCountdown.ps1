@@ -69,10 +69,8 @@
 
     Copyright © 2026 [Publisher]. All rights reserved.
 
-    This source code is subject to the terms and conditions defined in 
-    the 'LICENSE.md' file located in the root directory of this repository 
-    or online at [License URL].
-
+    This source code is subject to the terms and conditions defined in the 'LICENSE.md' file located in the root directory of this repository or online at at the URL above.
+    
     No external module or third-party dependency is required.
 
     Future release tooling may add package integrity and Authenticode signature verification without changing the countdown application itself.
