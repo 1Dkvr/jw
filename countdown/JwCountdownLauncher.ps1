@@ -5,12 +5,9 @@
 .DESCRIPTION
     Starts JW Countdown and checks GitHub for a newer stable release.
 
-    When an update is available, the launcher allows the user to review the
-    release notes or install the update automatically.
+    When an update is available, the launcher allows the user to review the release notes or install the update automatically.
 
-    The launcher is responsible for release detection, version comparison
-    and update delegation. The actual download and installation process is
-    handled by JwCountdownUpdater.ps1.
+    The launcher is responsible for release detection, version comparison and update delegation. The actual download and installation process is handled by JwCountdownUpdater.ps1.
 
 .NOTES
     Product      : JW Countdown
