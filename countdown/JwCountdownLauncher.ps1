@@ -4,9 +4,7 @@
 
 .DESCRIPTION
     Starts JW Countdown and checks GitHub for a newer stable release.
-
     When an update is available, the launcher allows the user to review the release notes or install the update automatically.
-
     The launcher is responsible for release detection, version comparison and update delegation. The actual download and installation process is handled by JwCountdownUpdater.ps1.
 
 .NOTES
@@ -14,19 +12,17 @@
     Component    : Launcher and update manager
     Created      : 19.09.01
     Developer    : 1Dkvr
-    Publisher    : Hold'inCorp.
+    Licensor     : Hold'inCorp.
     Platform     : Microsoft Windows
     Runtime      : Windows PowerShell 5.1+
     Dependencies : System.Windows.Forms, System.Drawing
     License      : Custom Non-Commercial Source-Available
     License URL  : https://github.com/1Dkvr/jw/blob/main/LICENSE.md
 
-    Copyright © 2026 [Publisher]. All rights reserved.
+    Copyright © 2026 [Licensor]. All rights reserved.
 
     This source code is subject to the terms and conditions defined in the 'LICENSE.md' file located in the root directory of this repository or online at the URL above.
-
     No external module or third-party dependency is required.
-
     Future release tooling may add package integrity and Authenticode signature verification without changing the countdown application itself.
 #>
 
