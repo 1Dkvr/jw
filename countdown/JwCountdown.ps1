@@ -117,8 +117,7 @@ $script:TimerMutexOwned = $false
 try {
     try {
         $mutexAcquired = $script:TimerMutex.WaitOne(0, $false)
-    }
-    catch [System.Threading.AbandonedMutexException] {
+    } catch [System.Threading.AbandonedMutexException] {
         $mutexAcquired = $true
     }
 
@@ -232,8 +231,7 @@ public static class JWCountdownNative {
             -TypeDefinition $nativeInterop `
             -Language CSharp `
             -ErrorAction Stop
-    }
-    catch {
+    } catch {
         [System.Diagnostics.Debug]::WriteLine("[$($script:AppName)] Unable to initialize Windows native interop.")
     }
 
@@ -358,8 +356,7 @@ public static class JWCountdownNative {
             [System.Windows.Forms.Application]::DoEvents()
 
             Start-Sleep -Milliseconds $script:DisplayIdentificationDuration
-        }
-        finally {
+        } finally {
             foreach($identifierForm in $identifierWindows){
                 if($null -ne $identifierForm -and -not $identifierForm.IsDisposed){
                     try {
@@ -458,8 +455,7 @@ public static class JWCountdownNative {
                     $overlay.Close()
                 }
             }
-        }
-        catch {
+        } catch {
             [System.Diagnostics.Debug]::WriteLine("[$($script:AppName)] Error while closing countdown overlays: $($_.Exception.Message)")
         }
     }
@@ -779,9 +775,9 @@ public static class JWCountdownNative {
 
         if($selectedCount -eq 0){
             $selectionSummaryLabel.Text = "No display selected."
-        } elseif($selectedCount -eq 1){
+        } elseif($selectedCount -eq 1) {
             $selectionSummaryLabel.Text = "1 display selected."
-        } elseif($selectedCount -eq $totalCount){
+        } elseif($selectedCount -eq $totalCount) {
             $selectionSummaryLabel.Text = "All $totalCount displays selected."
         } else {
             $selectionSummaryLabel.Text = "$selectedCount displays selected."
