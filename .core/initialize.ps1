@@ -3,13 +3,8 @@
     Initializes the shared JW project context.
 
 .DESCRIPTION
-    Loads the repository-wide configuration and the selected project configuration,
-    validates the repository structure, resolves the project paths and exposes a
-    common context object for the other JW Core scripts.
-
-    This script contains no GitHub API logic, build logic, installation logic or
-    update logic. Its sole responsibility is to initialize a consistent execution
-    context for a JW project.
+    Loads the repository-wide configuration and the selected project configuration, validates the repository structure, resolves the project paths and exposes a common context object for the other JW Core scripts.
+    This script contains no GitHub API logic, build logic, installation logic or update logic. Its sole responsibility is to initialize a consistent execution context for a JW project.
 
 .PARAMETER RepositoryRoot
     Absolute path to the root of the JW repository.
@@ -22,10 +17,24 @@
     Returns an initialized JW project context.
 
 .NOTES
-    Component : JW Core
-    File      : initialize.ps1
-    Developer : 1Dkvr
-    Licensor  : Hold'inCorp.
+    Product      : JW Core
+    Component    : Project initialization
+    Developer    : 1Dkvr
+    Licensor     : Hold'inCorp.
+    Platform     : Microsoft Windows
+    Runtime      : Windows PowerShell 5.1+
+    Dependencies : None
+    License      : Custom Non-Commercial Source-Available
+    License URL  : https://github.com/1Dkvr/jw/blob/main/LICENSE.md
+
+    Copyright © 2019-2026 Hold'inCorp. — All rights reserved.
+    Developed by 1Dkvr.
+    Licensed under the Custom Non-Commercial Source-Available License.
+    See `LICENSE.md` for the full license terms.
+
+    This source code is protected by applicable copyright and other intellectual property laws. Use, reproduction, modification and redistribution are subject to the terms and conditions defined in `LICENSE.md`.
+
+    The copyright and license notices contained in this source code must not be removed, altered or obscured without authorization.
 #>
 
 Set-StrictMode -Version Latest
