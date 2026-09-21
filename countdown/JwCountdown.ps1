@@ -113,7 +113,7 @@ $script:Developer = $script:Configuration.Project.Developer
 # 2.1. APPLICATION CONSTANTS
 # =====================================================================
 $script:MutexName = $script:Configuration.Runtime.ApplicationMutexName
-$script:DisplayIdentificationDuration = 1800
+$script:DisplayIdentificationDuration = 2000
 $script:CountdownTimerInterval = 1000
 $script:OverlayHeightRatio = 0.25
 
