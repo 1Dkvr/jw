@@ -60,19 +60,17 @@
     Component    : Main application
     Created      : 26.09.01
     Developer    : 1Dkvr
-    Publisher    : Hold'inCorp.
+    Licensor     : Hold'inCorp.
     Platform     : Microsoft Windows
     Runtime      : Windows PowerShell 5.1+
     Dependencies : System.Windows.Forms, System.Drawing
     License      : Custom Non-Commercial Source-Available
     License URL  : https://github.com/1Dkvr/jw/blob/main/LICENSE.md
 
-    Copyright © 2026 [Publisher]. All rights reserved.
+    Copyright © 2026 [Licensor]. All rights reserved.
 
     This source code is subject to the terms and conditions defined in the 'LICENSE.md' file located in the root directory of this repository or online at at the URL above.
-    
     No external module or third-party dependency is required.
-
     Future release tooling may add package integrity and Authenticode signature verification without changing the countdown application itself.
 #>
 Set-StrictMode -Version Latest
