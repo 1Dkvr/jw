@@ -1,1 +1,54 @@
+name: Release Project
 
+run-name: Release ${{ inputs.project }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: "Project to build and release"
+        required: true
+        type: choice
+        options:
+          - countdown
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and release ${{ inputs.project }}
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Validate project
+        shell: powershell
+        run: |
+          $projectPath = Join-Path -Path $env:GITHUB_WORKSPACE -ChildPath "${{ inputs.project }}"
+          $buildScript = Join-Path -Path $env:GITHUB_WORKSPACE -ChildPath ".core\build.ps1"
+
+          if (-not (Test-Path -LiteralPath $projectPath -PathType Container)) {
+              throw "Project directory not found: $projectPath"
+          }
+
+          if (-not (Test-Path -LiteralPath $buildScript -PathType Leaf)) {
+              throw "Build script not found: $buildScript"
+          }
+
+          Write-Host "Project: ${{ inputs.project }}"
+          Write-Host "Project path: $projectPath"
+          Write-Host "Build script: $buildScript"
+
+      - name: Build project
+        shell: powershell
+        run: |
+          & "$env:GITHUB_WORKSPACE\.core\build.ps1" `
+            -Project "${{ inputs.project }}" `
+            -RepositoryRoot "$env:GITHUB_WORKSPACE"
