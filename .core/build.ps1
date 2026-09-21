@@ -297,6 +297,7 @@ function New-JwProjectBuild {
         -PackageName $packageName `
         -DestinationPath $manifestPath
 
+    # Installation launcher: temporary package entry point. It is generated for the distributed package and is not installed into JwCollection.
     $installerPath = Join-Path -Path $stagingRoot -ChildPath "install.bat"
 
     New-JwInstallLauncher -DestinationPath $installerPath
