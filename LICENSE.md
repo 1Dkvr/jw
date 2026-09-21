@@ -12,7 +12,7 @@ This Agreement is governed by the defined terms set forth in the schedule below.
 | **[SOFTWARE_NAME]** | *This Repository & Associated Assets* | Any software, project, script, codebase, library, binary, asset, or documentation in which this License is embedded or distributed. |
 | **[EFFECTIVE_DATE]** | *2025* | The initial publication or copyright creation year. |
 | **[LICENSOR_JURISDICTION]** | *Paris, France* | Applicable governing law venue and courts of competent jurisdiction of **[LICENSOR]**. |
-| **[LICENSING_CONTACT]** | *inprogress.company* | Official contact for commercial licensing inquiries. |
+| **[LICENSING_CONTACT]** | *contact+licensing@inprogress.company* | Official contact for commercial licensing inquiries. |
 
 ---
 ## 2. Grant of non-commercial license
