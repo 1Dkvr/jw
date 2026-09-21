@@ -38,7 +38,7 @@
 
 Set-StrictMode -Version Latest
 
-$script:JwVersionPattern = '^(?<Prefix>\d{2}\.\d{2})\.(?<Build>\d+)$'
+$patternBuild = '^(?<Prefix>\d{2}\.\d{2})\.(?<Build>\d+)$'
 
 function Get-JwUnixMilliseconds {
     <#
@@ -79,7 +79,7 @@ function Test-JwVersion {
         [string]$Version
     )
 
-    return $Version -match $script:JwVersionPattern
+    return $Version -match $patternBuild
 }
 
 function Get-JwVersionInfo {
@@ -105,7 +105,7 @@ function Get-JwVersionInfo {
         throw "Invalid JW version '$Version'. Expected format: YY.MM.BUILD"
     }
 
-    $match = [System.Text.RegularExpressions.Regex]::Match($Version, $script:JwVersionPattern)
+    $match = [System.Text.RegularExpressions.Regex]::Match($Version, $patternBuild)
 
     [int64]$build = 0
 
