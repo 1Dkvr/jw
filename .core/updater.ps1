@@ -4,8 +4,8 @@
 
 .DESCRIPTION
     Provides the shared update mechanism used by JW projects.
-    The updater checks GitHub Releases for a newer version of the current project, prompts the user when an update is available, downloads the corresponding package and replaces the installed project and JW Core through a temporary updater process.
-    GitHub Releases are the authoritative source for published project versions.
+    The updater checks GitHub Releases for a newer version of the current project, prompts the user when an update is available, downloads the corresponding package and starts a temporary update worker that replaces the installedproject and JW Core after the application process has terminated.
+    The updater itself never replaces the files it is currently executing.
 
 .NOTES
     Product      : JW Core
@@ -28,11 +28,6 @@
     The copyright and license notices contained in this source code must not be removed, altered or obscured without authorization.
 #>
 
-param(
-    [Parameter()]
-    [switch]$Library
-)
-
 Set-StrictMode -Version Latest
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -50,7 +45,7 @@ function Show-JwUpdaterMessage {
         [string]$Message,
 
         [Parameter()]
-        [string]$Title = "JW Countdown",
+        [string]$Title = "JW Update",
 
         [Parameter()]
         [System.Windows.Forms.MessageBoxButtons]$Buttons = [System.Windows.Forms.MessageBoxButtons]::OK,
@@ -68,10 +63,10 @@ function Get-JwInstalledManifest {
         Reads the installed project's manifest.
 
     .PARAMETER ProjectPath
-        Path to the installed project directory.
+        Absolute path to the installed project directory.
 
     .OUTPUTS
-        System.Object
+        PSCustomObject
     #>
 
     [CmdletBinding()]
@@ -88,11 +83,7 @@ function Get-JwInstalledManifest {
     }
 
     try {
-        return Get-Content `
-            -LiteralPath $manifestPath `
-            -Raw `
-            -ErrorAction Stop |
-            ConvertFrom-Json
+        return Get-Content -LiteralPath $manifestPath -Raw -ErrorAction Stop | ConvertFrom-Json
     } catch {
         throw "Unable to read the installed project manifest. $($_.Exception.Message)"
     }
@@ -101,7 +92,7 @@ function Get-JwInstalledManifest {
 function Get-JwInstalledProjectVersion {
     <#
     .SYNOPSIS
-        Returns the installed project version from its manifest.
+        Returns the installed project version.
     #>
 
     [CmdletBinding()]
@@ -113,10 +104,7 @@ function Get-JwInstalledProjectVersion {
 
     $manifest = Get-JwInstalledManifest -ProjectPath $ProjectPath
 
-    if(
-        $null -eq $manifest.Build -or
-        [string]::IsNullOrWhiteSpace([string]$manifest.Build.Version)
-    ){
+    if($null -eq $manifest.Build -or [string]::IsNullOrWhiteSpace([string]$manifest.Build.Version) ){
         throw "The installed project manifest does not contain a valid version."
     }
 
@@ -129,19 +117,10 @@ function Get-JwInstalledProjectVersion {
     return $version
 }
 
-function Get-JwUpdaterReleasePackage {
+function Get-JwReleasePackageAsset {
     <#
     .SYNOPSIS
-        Finds the downloadable ZIP package for a GitHub Release.
-
-    .PARAMETER Context
-        Initialized JW project context.
-
-    .PARAMETER Release
-        GitHub Release information.
-
-    .OUTPUTS
-        System.Object
+        Finds the ZIP package belonging to a GitHub Release.
     #>
 
     [CmdletBinding()]
@@ -175,19 +154,14 @@ function Get-JwUpdaterReleasePackage {
 function New-JwUpdateWorker {
     <#
     .SYNOPSIS
-        Creates the temporary process responsible for replacing the application.
-
-    .DESCRIPTION
-        The worker runs independently from the application's updater process so
-        that the installed .core directory can safely be replaced after the
-        application and updater processes have terminated.
+        Creates a temporary worker that performs the update after the application exits.
     #>
 
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
-        [string]$UpdateRoot,
+        [string]$WorkerDirectory,
 
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
@@ -209,9 +183,9 @@ function New-JwUpdateWorker {
         [int]$ParentProcessId
     )
 
-    $workerPath = Join-Path -Path $UpdateRoot -ChildPath "jw-update-worker-$PID.ps1"
+    $workerPath = Join-Path -Path $WorkerDirectory -ChildPath ("jw-update-worker-" + [guid]::NewGuid().ToString("N") + ".ps1")
 
-    $workerTemplate = @'
+    $workerContent = @'
 param(
     [Parameter(Mandatory)]
     [string]$PackagePath,
@@ -226,25 +200,33 @@ param(
     [string]$EntryPoint,
 
     [Parameter(Mandatory)]
-    [int]$ParentProcessId
+    [int]$ParentProcessId,
+
+    [Parameter(Mandatory)]
+    [string]$WorkerPath
 )
 
 Set-StrictMode -Version Latest
 
 $ErrorActionPreference = "Stop"
 
-function Remove-DirectorySafely {
+function Wait-JwParentProcess {
     param(
         [Parameter(Mandatory)]
-        [string]$Path
+        [int]$ProcessId
     )
 
-    if(Test-Path -LiteralPath $Path){
-        Remove-Item -LiteralPath $Path -Recurse -Force
+    while($true){
+        try {
+            Get-Process -Id $ProcessId -ErrorAction Stop | Out-Null
+            Start-Sleep -Milliseconds 250
+        } catch {
+            break
+        }
     }
 }
 
-function Copy-DirectoryContents {
+function Copy-JwDirectoryContents {
     param(
         [Parameter(Mandatory)]
         [string]$SourcePath,
@@ -254,84 +236,129 @@ function Copy-DirectoryContents {
     )
 
     if(-not (Test-Path -LiteralPath $DestinationPath -PathType Container)){
-        New-Item -ItemType Directory -Path $DestinationPath -Force | Out-Null
+        New-Item `
+            -ItemType Directory `
+            -Path $DestinationPath `
+            -Force `
+            -ErrorAction Stop | Out-Null
     }
 
-    Get-ChildItem -LiteralPath $SourcePath -Force |
+    Get-ChildItem `
+        -LiteralPath $SourcePath `
+        -Force `
+        -ErrorAction Stop |
         ForEach-Object {
-            Copy-Item -LiteralPath $_.FullName -Destination $DestinationPath -Recurse -Force
+            Copy-Item `
+                -LiteralPath $_.FullName `
+                -Destination $DestinationPath `
+                -Recurse `
+                -Force `
+                -ErrorAction Stop
         }
 }
 
-function Wait-ForProcessExit {
+function Remove-JwDirectory {
     param(
         [Parameter(Mandatory)]
-        [int]$ProcessId
+        [string]$Path
     )
 
-    try {
-        $process = Get-Process -Id $ProcessId -ErrorAction Stop
-        $process.WaitForExit()
-    } catch {
-        # The parent process has already exited.
+    if(Test-Path -LiteralPath $Path){
+        Remove-Item `
+            -LiteralPath $Path `
+            -Recurse `
+            -Force `
+            -ErrorAction Stop
     }
 }
 
 try {
-    Wait-ForProcessExit -ProcessId $ParentProcessId
+    Wait-JwParentProcess -ProcessId $ParentProcessId
 
-    $updateExtractionPath = Join-Path `
+    if(-not (Test-Path -LiteralPath $PackagePath -PathType Leaf)){
+        throw "Update package was not found: $PackagePath"
+    }
+
+    $extractionPath = Join-Path `
         -Path ([System.IO.Path]::GetTempPath()) `
         -ChildPath ("JW-Update-" + [guid]::NewGuid().ToString("N"))
 
     New-Item `
         -ItemType Directory `
-        -Path $updateExtractionPath `
-        -Force | Out-Null
+        -Path $extractionPath `
+        -Force `
+        -ErrorAction Stop | Out-Null
 
     Expand-Archive `
         -LiteralPath $PackagePath `
-        -DestinationPath $updateExtractionPath `
-        -Force
+        -DestinationPath $extractionPath `
+        -Force `
+        -ErrorAction Stop
 
-    $sourceCorePath = Join-Path -Path $updateExtractionPath -ChildPath ".core"
-    $sourceProjectPath = Join-Path -Path $updateExtractionPath -ChildPath $Project
+    $sourceCorePath = Join-Path -Path $extractionPath -ChildPath ".core"
+    $sourceProjectPath = Join-Path -Path $extractionPath -ChildPath $Project
+    $sourceManifestPath = Join-Path -Path $extractionPath -ChildPath "manifest.json"
+    $sourceCoreManifestPath = Join-Path -Path $sourceCorePath -ChildPath "manifest.json"
 
     if(-not (Test-Path -LiteralPath $sourceCorePath -PathType Container)){
-        throw "The update package does not contain .core."
+        throw "The update package does not contain '.core'."
     }
 
     if(-not (Test-Path -LiteralPath $sourceProjectPath -PathType Container)){
-        throw "The update package does not contain the project directory."
+        throw "The update package does not contain '$Project'."
     }
 
-    $destinationCorePath = Join-Path -Path $CollectionPath -ChildPath ".core"
-    $destinationProjectPath = Join-Path -Path $CollectionPath -ChildPath $Project
+    if(
+        -not (Test-Path -LiteralPath $sourceManifestPath -PathType Leaf) -and
+        -not (Test-Path -LiteralPath $sourceCoreManifestPath -PathType Leaf)
+    ){
+        throw "The update package does not contain a manifest."
+    }
 
-    Remove-DirectorySafely -Path $destinationCorePath
-    Remove-DirectorySafely -Path $destinationProjectPath
+    $destinationCorePath = Join-Path `
+        -Path $CollectionPath `
+        -ChildPath ".core"
 
-    Copy-DirectoryContents `
+    $destinationProjectPath = Join-Path `
+        -Path $CollectionPath `
+        -ChildPath $Project
+
+    Remove-JwDirectory -Path $destinationCorePath
+    Remove-JwDirectory -Path $destinationProjectPath
+
+    Copy-JwDirectoryContents `
         -SourcePath $sourceCorePath `
         -DestinationPath $destinationCorePath
 
-    Copy-DirectoryContents `
+    Copy-JwDirectoryContents `
         -SourcePath $sourceProjectPath `
         -DestinationPath $destinationProjectPath
 
-    if(Test-Path -LiteralPath (Join-Path -Path $updateExtractionPath -ChildPath "LICENSE.md") -PathType Leaf){
+    if(Test-Path -LiteralPath $sourceManifestPath -PathType Leaf){
         Copy-Item `
-            -LiteralPath (Join-Path -Path $updateExtractionPath -ChildPath "LICENSE.md") `
-            -Destination (Join-Path -Path $CollectionPath -ChildPath "LICENSE.md") `
-            -Force
+            -LiteralPath $sourceManifestPath `
+            -Destination (Join-Path -Path $destinationProjectPath -ChildPath "manifest.json") `
+            -Force `
+            -ErrorAction Stop
+    } else {
+        Copy-Item `
+            -LiteralPath $sourceCoreManifestPath `
+            -Destination (Join-Path -Path $destinationProjectPath -ChildPath "manifest.json") `
+            -Force `
+            -ErrorAction Stop
     }
 
-    if(Test-Path -LiteralPath (Join-Path -Path $updateExtractionPath -ChildPath "README.md") -PathType Leaf
-    ){
-        Copy-Item `
-            -LiteralPath (Join-Path -Path $updateExtractionPath -ChildPath "README.md") `
-            -Destination (Join-Path -Path $CollectionPath -ChildPath "README.md") `
-            -Force
+    foreach($collectionFile in @("LICENSE.md", "README.md")){
+        $sourcePath = Join-Path -Path $extractionPath -ChildPath $collectionFile
+        $destinationPath = Join-Path -Path $CollectionPath -ChildPath $collectionFile
+
+        if(Test-Path -LiteralPath $sourcePath -PathType Leaf){
+            Copy-Item `
+                -LiteralPath $sourcePath `
+                -Destination $destinationPath `
+                -Force `
+                -ErrorAction Stop
+        }
     }
 
     Remove-Item `
@@ -339,19 +366,37 @@ try {
         -Force `
         -ErrorAction SilentlyContinue
 
-    Remove-DirectorySafely -Path $updateExtractionPath
+    Remove-Item `
+        -LiteralPath $extractionPath `
+        -Recurse `
+        -Force `
+        -ErrorAction SilentlyContinue
+
+    if(Test-Path -LiteralPath $WorkerPath -PathType Leaf){
+        Remove-Item `
+            -LiteralPath $WorkerPath `
+            -Force `
+            -ErrorAction SilentlyContinue
+    }
 
     $entryPointPath = Join-Path `
         -Path $destinationProjectPath `
         -ChildPath $EntryPoint
 
     if(Test-Path -LiteralPath $entryPointPath -PathType Leaf){
-        Start-Process -FilePath $entryPointPath -WorkingDirectory $destinationProjectPath
+        Start-Process `
+            -FilePath "cmd.exe" `
+            -ArgumentList @(
+                "/c"
+                "`"$entryPointPath`""
+            ) `
+            -WorkingDirectory $destinationProjectPath `
+            -ErrorAction Stop | Out-Null
     }
 } catch {
     [System.Windows.Forms.MessageBox]::Show(
         "The update could not be completed.`r`n`r`n$($_.Exception.Message)",
-        "JW Updater",
+        "JW Update",
         [System.Windows.Forms.MessageBoxButtons]::OK,
         [System.Windows.Forms.MessageBoxIcon]::Error
     ) | Out-Null
@@ -359,8 +404,6 @@ try {
     exit 1
 }
 '@
-
-    $workerContent = $workerTemplate
 
     $workerContent | Set-Content -LiteralPath $workerPath -Encoding UTF8 -ErrorAction Stop
 
@@ -370,7 +413,7 @@ try {
 function Start-JwUpdateWorker {
     <#
     .SYNOPSIS
-        Starts the temporary update worker.
+        Starts the temporary update worker process.
     #>
 
     [CmdletBinding()]
@@ -416,6 +459,8 @@ function Start-JwUpdateWorker {
         "`"$EntryPoint`""
         "-ParentProcessId"
         $ParentProcessId
+        "-WorkerPath"
+        "`"$WorkerPath`""
     )
 
     Start-Process `
@@ -425,19 +470,60 @@ function Start-JwUpdateWorker {
         -ErrorAction Stop | Out-Null
 }
 
+function Import-JwUpdaterDependencies {
+    <#
+    .SYNOPSIS
+        Loads the shared JW Core dependencies required by the updater.
+    #>
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$CorePath
+    )
+
+    $initializePath = Join-Path -Path $CorePath -ChildPath "initialize.ps1"
+    $versionPath = Join-Path -Path $CorePath -ChildPath "version.ps1"
+    $githubPath = Join-Path -Path $CorePath -ChildPath "github.ps1"
+
+    foreach($dependencyPath in @(
+        $initializePath
+        $versionPath
+        $githubPath
+    )){
+        if(-not (Test-Path -LiteralPath $dependencyPath -PathType Leaf)){
+            throw "Required JW Core file was not found: $dependencyPath"
+        }
+    }
+
+    . $initializePath
+    . $versionPath
+    . $githubPath
+}
+
 function Invoke-JwProjectUpdate {
     <#
     .SYNOPSIS
-        Checks for and optionally installs a newer version of the current project.
+        Checks for and optionally installs a newer version of a JW project.
+
+    .DESCRIPTION
+        Checks GitHub Releases for the latest published version of the selected
+        project. If a newer version exists, the user is asked whether the update
+        should be installed.
+
+        When the update is accepted, a temporary worker process is started.
+        The calling application must then terminate so the worker can replace
+        the installed .core and project directories safely.
 
     .PARAMETER CollectionPath
-        Root path of the installed JW Collection.
+        Absolute path to the JW Collection.
 
     .PARAMETER Project
-        Installed project directory name.
+        Project directory name.
 
-    .PARAMETER Context
-        Initialized JW project context.
+    .PARAMETER ProcessId
+        Process ID of the currently running application.
 
     .OUTPUTS
         PSCustomObject
@@ -453,141 +539,141 @@ function Invoke-JwProjectUpdate {
         [ValidateNotNullOrEmpty()]
         [string]$Project,
 
-        [Parameter(Mandatory)]
-        [ValidateNotNull()]
-        [pscustomobject]$Context
+        [Parameter()]
+        [int]$ProcessId = $PID
     )
 
-    $projectPath = Join-Path -Path $CollectionPath -ChildPath $Project
+    try {
+        $collectionPathResolved = [System.IO.Path]::GetFullPath($CollectionPath)
+        $projectPath = Join-Path -Path $collectionPathResolved -ChildPath $Project
+        $corePath = Join-Path -Path $collectionPathResolved -ChildPath ".core"
 
-    $currentVersion = Get-JwInstalledProjectVersion `
-        -ProjectPath $projectPath
-
-    $latestRelease = Get-JwGitHubLatestProjectRelease `
-        -Context $Context
-
-    if($null -eq $latestRelease){
-        return [pscustomobject]@{
-            UpdateAvailable = $false
-            CurrentVersion  = $currentVersion
-            LatestVersion   = $null
-            Updated         = $false
+        if(-not (Test-Path -LiteralPath $collectionPathResolved -PathType Container)){
+            throw "JW Collection directory was not found: $collectionPathResolved"
         }
-    }
 
-    $latestVersion = [string]$latestRelease.Version.Version
-
-    $comparison = Compare-JwVersions -VersionA $currentVersion -VersionB $latestVersion
-
-    if($comparison -ge 0){
-        return [pscustomobject]@{
-            UpdateAvailable = $false
-            CurrentVersion  = $currentVersion
-            LatestVersion   = $latestVersion
-            Updated         = $false
+        if(-not (Test-Path -LiteralPath $projectPath -PathType Container)){
+            throw "Project directory was not found: $projectPath"
         }
-    }
 
-    $projectName = [string]$Context.ProjectConfig.Project.Name
+        if(-not (Test-Path -LiteralPath $corePath -PathType Container)){
+            throw "JW Core directory was not found: $corePath"
+        }
 
-    $result = Show-JwUpdaterMessage `
-        -Message "$projectName $latestVersion is available.`r`n`r`nInstalled version: $currentVersion`r`nAvailable version: $latestVersion`r`n`r`nWould you like to install the update now?" `
-        -Title "$projectName Update" `
-        -Buttons ([System.Windows.Forms.MessageBoxButtons]::YesNo) `
-        -Icon ([System.Windows.Forms.MessageBoxIcon]::Information)
+        Import-JwUpdaterDependencies -CorePath $corePath
 
-    if($result -ne [System.Windows.Forms.DialogResult]::Yes){
+        $context = Initialize-JwContext -RepositoryRoot $collectionPathResolved -Project $Project
+        $currentVersion = Get-JwInstalledProjectVersion -ProjectPath $projectPath
+        $latestRelease = Get-JwGitHubLatestProjectRelease -Context $context
+
+        if($null -eq $latestRelease){
+            return [pscustomobject]@{
+                UpdateAvailable = $false
+                Updated         = $false
+                RestartRequired = $false
+                CurrentVersion  = $currentVersion
+                LatestVersion   = $null
+            }
+        }
+
+        $latestVersion = [string]$latestRelease.Version.Version
+
+        $comparison = Compare-JwVersions `
+            -VersionA $currentVersion `
+            -VersionB $latestVersion
+
+        if($comparison -ge 0){
+            return [pscustomobject]@{
+                UpdateAvailable = $false
+                Updated         = $false
+                RestartRequired = $false
+                CurrentVersion  = $currentVersion
+                LatestVersion   = $latestVersion
+            }
+        }
+
+        $projectName = [string]$context.ProjectConfig.Project.Name
+
+        $dialogResult = Show-JwUpdaterMessage `
+            -Message "$projectName $latestVersion is available.`r`n`r`nInstalled version: $currentVersion`r`nAvailable version: $latestVersion`r`n`r`nWould you like to install this update now?" `
+            -Title "$projectName Update" `
+            -Buttons ([System.Windows.Forms.MessageBoxButtons]::YesNo) `
+            -Icon ([System.Windows.Forms.MessageBoxIcon]::Information)
+
+        if($dialogResult -ne [System.Windows.Forms.DialogResult]::Yes){
+            return [pscustomobject]@{
+                UpdateAvailable = $true
+                Updated         = $false
+                RestartRequired = $false
+                CurrentVersion  = $currentVersion
+                LatestVersion   = $latestVersion
+            }
+        }
+
+        $asset = Get-JwReleasePackageAsset `
+            -Context $context `
+            -Release $latestRelease
+
+        if($null -eq $asset){
+            throw "The latest Release does not contain the expected ZIP package."
+        }
+
+        $updateDirectory = Join-Path `
+            -Path ([System.IO.Path]::GetTempPath()) `
+            -ChildPath ("JW-Update-" + [guid]::NewGuid().ToString("N"))
+
+        New-Item `
+            -ItemType Directory `
+            -Path $updateDirectory `
+            -Force `
+            -ErrorAction Stop | Out-Null
+
+        $packagePath = Join-Path `
+            -Path $updateDirectory `
+            -ChildPath ([string]$asset.name)
+
+        Save-JwGitHubReleaseAsset `
+            -Context $context `
+            -Asset $asset `
+            -DestinationPath $packagePath
+
+        $entryPoint = [string]$context.ProjectConfig.Files.EntryPoint
+
+        if([string]::IsNullOrWhiteSpace($entryPoint)){
+            throw "The project configuration does not define 'Files.EntryPoint'."
+        }
+
+        $workerPath = New-JwUpdateWorker `
+            -WorkerDirectory $updateDirectory `
+            -PackagePath $packagePath `
+            -CollectionPath $collectionPathResolved `
+            -Project $Project `
+            -EntryPoint $entryPoint `
+            -ParentProcessId $ProcessId
+
+        Start-JwUpdateWorker `
+            -WorkerPath $workerPath `
+            -PackagePath $packagePath `
+            -CollectionPath $collectionPathResolved `
+            -Project $Project `
+            -EntryPoint $entryPoint `
+            -ParentProcessId $ProcessId
+
         return [pscustomobject]@{
             UpdateAvailable = $true
+            Updated         = $true
+            RestartRequired = $true
             CurrentVersion  = $currentVersion
             LatestVersion   = $latestVersion
-            Updated         = $false
         }
-    }
-
-    $asset = Get-JwUpdaterReleasePackage `
-        -Context $Context `
-        -Release $latestRelease
-
-    if($null -eq $asset){
-        throw "The latest Release does not contain the expected project package."
-    }
-
-    $updateRoot = Join-Path `
-        -Path ([System.IO.Path]::GetTempPath()) `
-        -ChildPath ("JW-Update-" + [guid]::NewGuid().ToString("N"))
-
-    New-Item `
-        -ItemType Directory `
-        -Path $updateRoot `
-        -Force `
-        -ErrorAction Stop | Out-Null
-
-    $packagePath = Join-Path `
-        -Path $updateRoot `
-        -ChildPath ([string]$asset.name)
-
-    Save-JwGitHubReleaseAsset `
-        -Context $Context `
-        -Asset $asset `
-        -DestinationPath $packagePath
-
-    $entryPoint = [string]$Context.ProjectConfig.Files.EntryPoint
-
-    if([string]::IsNullOrWhiteSpace($entryPoint)){
-        throw "The project configuration does not define an EntryPoint."
-    }
-
-    $workerPath = New-JwUpdateWorker `
-        -UpdateRoot $updateRoot `
-        -PackagePath $packagePath `
-        -CollectionPath $CollectionPath `
-        -Project $Project `
-        -EntryPoint $entryPoint `
-        -ParentProcessId $PID
-
-    Start-JwUpdateWorker `
-        -WorkerPath $workerPath `
-        -PackagePath $packagePath `
-        -CollectionPath $CollectionPath `
-        -Project $Project `
-        -EntryPoint $entryPoint `
-        -ParentProcessId $PID
-
-    return [pscustomobject]@{
-        UpdateAvailable = $true
-        CurrentVersion  = $currentVersion
-        LatestVersion   = $latestVersion
-        Updated         = $true
-        RestartRequired = $true
-    }
-}
-
-if(-not $Library){
-    try {
-        $collectionPath = Split-Path -Path $PSScriptRoot -Parent
-        $projectPath = Join-Path -Path $collectionPath -ChildPath $env:JW_PROJECT
-
-        if(-not (Test-Path -LiteralPath $projectPath -PathType Container)){ return }
-
-        $corePath = Join-Path -Path $collectionPath -ChildPath ".core"
-        $initializePath = Join-Path -Path $corePath -ChildPath "initialize.ps1"
-        $versionPath = Join-Path -Path $corePath -ChildPath "version.ps1"
-        $githubPath = Join-Path -Path $corePath -ChildPath "github.ps1"
-
-        . $initializePath
-        . $versionPath
-        . $githubPath
-
-        $context = Initialize-JwContext `
-            -RepositoryRoot $collectionPath `
-            -Project $env:JW_PROJECT
-
-        [void](Invoke-JwProjectUpdate `
-            -CollectionPath $collectionPath `
-            -Project $env:JW_PROJECT `
-            -Context $context)
     } catch {
-        # Update checks must never prevent the application from starting.
+        return [pscustomobject]@{
+            UpdateAvailable = $false
+            Updated         = $false
+            RestartRequired = $false
+            CurrentVersion  = $null
+            LatestVersion   = $null
+            Error           = $_.Exception.Message
+        }
     }
 }
