@@ -19,7 +19,7 @@
     License      : Custom Non-Commercial Source-Available
     License URL  : https://github.com/1Dkvr/jw/blob/main/LICENSE.md
 
-    Copyright © 2026 [Licensor]. All rights reserved.
+    Copyright © 2019-2027 [Licensor]. All rights reserved.
 
     This source code is subject to the terms and conditions defined in the 'LICENSE.md' file located in the root directory of this repository or online at the URL above.
     No external module or third-party dependency is required.
