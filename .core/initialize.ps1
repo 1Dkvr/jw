@@ -27,7 +27,7 @@
     License      : Custom Non-Commercial Source-Available
     License URL  : https://github.com/1Dkvr/jw/blob/main/LICENSE.md
 
-    Copyright © 2019-2026 Hold'inCorp. — All rights reserved.
+    Copyright © 2019 Hold'inCorp. — All rights reserved.
     Developed by 1Dkvr.
     Licensed under the Custom Non-Commercial Source-Available License.
     See `LICENSE.md` for the full license terms.
