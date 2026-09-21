@@ -5,7 +5,7 @@
 :: ============================================================================
 ::
 :: Author      : 1Dkvr
-:: Publisher   : Hold'inCorp.
+:: Licensor    : Hold'inCorp.
 :: Copyright   : © 2026 Hold'inCorp. All rights reserved.
 :: Created     : 26.09.01
 :: Description : Starts the JW Countdown launcher and update manager.
@@ -15,7 +15,7 @@
 :: License     : Custom Non-Commercial Source-Available
 :: License URL : https://github.com/1Dkvr/jw/blob/main/LICENSE.md
 ::
-:: Copyright © 2026 [Publisher]. All rights reserved.
+:: Copyright © 2026 [Licensor]. All rights reserved.
 ::
 :: This source code is subject to the terms and conditions defined in the 'LICENSE.md' file located in the root directory of this repository or online at at the URL above.
 ::
