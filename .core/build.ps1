@@ -21,12 +21,28 @@
     Licensed under the Custom Non-Commercial Source-Available License.
     See `LICENSE.md` for the full license terms.
 
-    This source code is protected by applicable copyright and other intellectual property laws. Use, reproduction, modification and redistribution are subject to the terms and conditions defined in `LICENSE.md`.
+    This source code is protected by applicable copyright and other intellectual property laws. Use, reproduction, modification and redistribution are subject to the terms and conditions defined in LICENSE.md.
 
     The copyright and license notices contained in this source code must not be removed, altered or obscured without authorization.
 #>
 
+param(
+    [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
+    [string]$RepositoryRoot,
+
+    [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
+    [string]$Project,
+
+    [Parameter()]
+    [ValidateNotNullOrEmpty()]
+    [string]$OutputRoot = ".build"
+)
+
 Set-StrictMode -Version Latest
+
+Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 function Copy-JwBuildFile {
     <#
@@ -234,7 +250,7 @@ function New-JwProjectBuild {
         $version = New-JwVersion -VersionPrefix $versionPrefix
         $packageName = "$($context.ProductIdentifier)-$version$($context.PackageExtension)"
         $packagePath = Join-Path -Path $projectOutputPath -ChildPath $packageName
-    } 
+    }
     while(Test-Path -LiteralPath $packagePath)
 
     $tagName = "$($context.Project.ToLowerInvariant())-$version"
@@ -272,10 +288,13 @@ function New-JwProjectBuild {
         throw "The project configuration does not contain a 'Files' section."
     }
 
-    $projectFiles = New-Object System.Collections.Generic.HashSet[string]([System.StringComparer]::OrdinalIgnoreCase)
+    $projectFiles = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase
+    )
 
-    foreach($fileValue in @($context.ProjectConfig.Files.Values)){
-        foreach($fileName in @($fileValue)){
+    foreach($entry in $context.ProjectConfig.Files.GetEnumerator()){
+        if($entry.Key -eq "Manifest"){ continue }
+        foreach($fileName in @($entry.Value)){
             if([string]::IsNullOrWhiteSpace([string]$fileName)){ continue }
             [void]$projectFiles.Add([string]$fileName)
         }
@@ -288,7 +307,7 @@ function New-JwProjectBuild {
         Copy-JwBuildFile -SourcePath $sourcePath -DestinationPath $destinationPath
     }
 
-    $manifestPath = Join-Path -Path $runtimeCorePath -ChildPath "manifest.json"
+    $manifestPath = Join-Path -Path $projectOutputDirectory -ChildPath "manifest.json"
 
     New-JwManifest `
         -Context $context `
@@ -316,12 +335,12 @@ function New-JwProjectBuild {
         Copy-JwBuildFile -SourcePath $readmeSource -DestinationPath $readmeDestination
     }
 
-    Compress-Archive `
-        -Path (Join-Path -Path $stagingRoot -ChildPath "*") `
-        -DestinationPath $packagePath `
-        -CompressionLevel Optimal `
-        -Force `
-        -ErrorAction Stop
+    [System.IO.Compression.ZipFile]::CreateFromDirectory(
+        $stagingRoot,
+        $packagePath,
+        [System.IO.Compression.CompressionLevel]::Optimal,
+        $false
+    )
 
     $hash = (Get-FileHash `
         -LiteralPath $packagePath `
