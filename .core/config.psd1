@@ -12,9 +12,14 @@
     License      : Custom Non-Commercial Source-Available
     License URL  : https://github.com/1Dkvr/jw/blob/main/LICENSE.md
 
-    Copyright © 2019 Hold'inCorp. All rights reserved.
+    Copyright © 2019 Hold'inCorp. — All rights reserved.
+    Developed by 1Dkvr.
+    Licensed under the Custom Non-Commercial Source-Available License.
+    See `LICENSE.md` for the full license terms.
 
-    This source code is subject to the terms and conditions defined in the 'LICENSE.md' file located in the root directory of this repository or online at at the URL above.
+    This source code is protected by applicable copyright and other intellectual property laws. Use, reproduction, modification and redistribution are subject to the terms and conditions defined in `LICENSE.md`.
+
+    The copyright and license notices contained in this source code must not be removed, altered or obscured without authorization.
 #>
 
 @{
