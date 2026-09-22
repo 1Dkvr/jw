@@ -77,7 +77,7 @@ function New-JwInstallLauncher {
     $content = @'
 @echo off
 setlocal
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0.jw\installer.ps1"
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0.core\installer.ps1"
 set "exitCode=%ERRORLEVEL%"
 endlocal & exit /b %exitCode%
 '@
@@ -248,7 +248,7 @@ function New-JwProjectBuild {
         "installer.ps1"
     )
 
-    $runtimeCorePath = Join-Path -Path $stagingRoot -ChildPath ".jw"
+    $runtimeCorePath = Join-Path -Path $stagingRoot -ChildPath ".core"
 
     foreach($coreFile in $runtimeCoreFiles){
         $sourcePath = Join-Path -Path $corePath -ChildPath $coreFile
