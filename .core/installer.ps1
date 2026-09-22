@@ -72,20 +72,29 @@ function Get-JwInstallerContext {
     )
 
     $corePath = Join-Path -Path $PackageRoot -ChildPath ".core"
-    $manifestPath = Join-Path -Path $corePath -ChildPath "manifest.json"
     $initializePath = Join-Path -Path $corePath -ChildPath "initialize.ps1"
 
     if(-not (Test-Path -LiteralPath $corePath -PathType Container)){
         throw "The JW Core directory was not found: $corePath"
     }
 
-    if(-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)){
-        throw "The package manifest was not found: $manifestPath"
-    }
-
     if(-not (Test-Path -LiteralPath $initializePath -PathType Leaf)){
         throw "The JW initialization script was not found: $initializePath"
     }
+
+    . $initializePath
+
+    $manifestPaths = @(Get-ChildItem -LiteralPath $PackageRoot -Directory -Force -ErrorAction Stop | ForEach-Object {
+        $candidateManifestPath = Join-Path -Path $_.FullName -ChildPath "manifest.json"
+
+        if(Test-Path -LiteralPath $candidateManifestPath -PathType Leaf){
+            $candidateManifestPath
+        }
+    })
+
+    if($manifestPaths.Count -ne 1){ throw "Unable to determine the packaged project manifest." }
+
+    $manifestPath = $manifestPaths[0]
 
     try {
         $manifest = Get-Content -LiteralPath $manifestPath -Raw -ErrorAction Stop | ConvertFrom-Json
@@ -98,8 +107,6 @@ function Get-JwInstallerContext {
     }
 
     $project = [string]$manifest.Project.Directory
-
-    . $initializePath
 
     $context = Initialize-JwContext -RepositoryRoot $PackageRoot -Project $project
 
@@ -239,17 +246,16 @@ function Get-JwCandidateCollectionPaths {
     $userHome = [Environment]::GetFolderPath("UserProfile")
     $documents = [Environment]::GetFolderPath("MyDocuments")
     $desktop = [Environment]::GetFolderPath("Desktop")
-
     $downloads = Join-Path -Path $userHome -ChildPath "Downloads"
     $localAppData = [Environment]::GetFolderPath("LocalApplicationData")
     $roamingAppData = [Environment]::GetFolderPath("ApplicationData")
 
     $commonRoots = @(
-        $userHome,
-        $documents,
-        $desktop,
-        $downloads,
-        $localAppData,
+        $userHome
+        $documents
+        $desktop
+        $downloads
+        $localAppData
         $roamingAppData
     )
 
@@ -263,7 +269,7 @@ function Get-JwCandidateCollectionPaths {
         }
     }
 
-    return @( $paths | Select-Object -Unique )
+    return @($paths | Select-Object -Unique)
 }
 
 function Select-JwCollectionPath {
@@ -388,11 +394,11 @@ function Install-JwCore {
     }
 
     $coreFiles = @(
-        "config.psd1",
-        "initialize.ps1",
-        "version.ps1",
-        "github.ps1",
-        "updater.ps1",
+        "config.psd1"
+        "initialize.ps1"
+        "version.ps1"
+        "github.ps1"
+        "updater.ps1"
         "installer.ps1"
     )
 
@@ -541,7 +547,6 @@ function Start-JwInstalledProject {
     )
 
     if(-not $Context.ProjectConfig.ContainsKey("Files")){ return }
-
     if(-not $Context.ProjectConfig.Files.ContainsKey("EntryPoint")){ return }
 
     $entryPoint = [string]$Context.ProjectConfig.Files.EntryPoint
@@ -577,9 +582,7 @@ function Install-JwProjectPackage {
 
     $installerContext = Get-JwInstallerContext -PackageRoot $PackageRoot
     $context = $installerContext.Context
-
     $collectionName = Get-JwCollectionName -Context $context
-
     $collectionPath = Select-JwCollectionPath -Context $context -CollectionName $collectionName
 
     if([string]::IsNullOrWhiteSpace($collectionPath)){ return $false }
@@ -623,7 +626,9 @@ function Install-JwProjectPackage {
         -Icon ([System.Windows.Forms.MessageBoxIcon]::Information)
 
     if($result -eq [System.Windows.Forms.DialogResult]::Yes){
-        Start-JwInstalledProject -Context $context -ProjectPath $installedProjectPath
+        Start-JwInstalledProject `
+            -Context $context `
+            -ProjectPath $installedProjectPath
     }
 
     return $true
