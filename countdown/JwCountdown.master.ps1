@@ -514,7 +514,7 @@ public static class JWCountdownNative {
                 $timerLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
                 $timerLabel.BackColor = $ColorBlack
                 $timerLabel.ForeColor = $ColorTimer
-                $timerLabel.Font = New-JWFont -Size 45 -Style ([System.Drawing.FontStyle]::Regular)
+                $timerLabel.Font = New-JWFont -Size 60 -Style ([System.Drawing.FontStyle]::Regular)
                 $timerLabel.Text = "00:00"
                 $overlay.Controls.Add($timerLabel)
 
